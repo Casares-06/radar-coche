@@ -2,8 +2,8 @@ import {
   FUELS, GEARBOXES, LABELS, STATUSES, EVIDENCE, DEFAULT_PROFILE,
   activeQuestions, carName, demoCars, euro, evaluate, kmText,
   normalizeUrl, parseListingText, validateCar,
-} from "./core.mjs";
-import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs";
+} from "./core.mjs?v=20261026-2";
+import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261026-2";
 
 const view = document.querySelector("#view");
 const toast = document.querySelector("#toast");

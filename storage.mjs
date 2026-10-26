@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE, EVIDENCE, FUELS, GEARBOXES, LABELS, STATUSES, normalizeUrl } from "./core.mjs";
+import { DEFAULT_PROFILE, EVIDENCE, FUELS, GEARBOXES, LABELS, STATUSES, normalizeUrl } from "./core.mjs?v=20261026-2";
 
 const KEY = "radar-coche-public-v1";
 export const inExtension = typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.storage?.local;

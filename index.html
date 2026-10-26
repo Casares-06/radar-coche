@@ -8,6 +8,11 @@
   <title>Radar Coche · Tu selección</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=20261026-2">
+  <script>
+    if (location.protocol === "file:") {
+      location.replace("https://casares-06.github.io/radar-coche/" + location.hash);
+    }
+  </script>
   <script type="module" src="./app.mjs?v=20261026-2"></script>
 </head>
 <body>
@@ -37,7 +42,14 @@
       <a class="mobile-brand" href="#inicio">Radar Coche</a>
       <button id="menu-toggle" class="menu-button" type="button" aria-label="Abrir menú" aria-expanded="false">Menú</button>
     </div>
-    <main id="view" class="canvas" tabindex="-1"></main>
+    <main id="view" class="canvas" tabindex="-1">
+      <section class="panel" style="max-width:680px">
+        <h1>Abre Radar Coche en la web</h1>
+        <p>Si esta pantalla no cambia, tu navegador no ha podido cargar la aplicación desde este archivo.</p>
+        <a class="btn btn-primary" href="https://casares-06.github.io/radar-coche/">Abrir Radar Coche</a>
+        <p class="fine">Para usar la copia local, abre <code>abrir_web.bat</code> desde la carpeta del proyecto.</p>
+      </section>
+    </main>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>

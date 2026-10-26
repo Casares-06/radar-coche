@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f4f7">
+  <meta name="description" content="Guarda y compara coches de segunda mano con tus propios límites y preguntas pendientes. Datos en tu navegador.">
+  <title>Radar Coche · Tu selección</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#view">Saltar al contenido</a>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#inicio" aria-label="Radar Coche, inicio">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 36 36"><path d="M4 23.5h28M8 23.5l3-8h14l3 8M10 27h.01M26 27h.01M8 23.5v5M28 23.5v5"/><path d="M13 15.5l2-4h6l2 4"/></svg></span>
+        <span><strong>Radar Coche</strong><small>Tu selección de segunda mano</small></span>
+      </a>
+      <div class="sidebar-scope">
+        <span>Perfil activo</span>
+        <strong id="profile-name">Mi búsqueda</strong>
+      </div>
+      <nav class="nav" aria-label="Secciones">
+        <a href="#inicio" data-route="inicio">Inicio</a>
+        <a href="#coches" data-route="coches">Mis coches <span id="nav-count" class="nav-count">0</span></a>
+        <a href="#comparar" data-route="comparar">Comparar</a>
+        <a href="#perfil" data-route="perfil">Mi búsqueda</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <nav class="nav" aria-label="Ayuda y datos"><a href="#datos" data-route="datos">Datos y ayuda</a></nav>
+        <p>Sin cuenta. Sin API. Tus fichas se guardan en este navegador.</p>
+      </div>
+    </aside>
+    <div class="mobile-bar">
+      <a class="mobile-brand" href="#inicio">Radar Coche</a>
+      <button id="menu-toggle" class="menu-button" type="button" aria-label="Abrir menú" aria-expanded="false">Menú</button>
+    </div>
+    <main id="view" class="canvas" tabindex="-1"></main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

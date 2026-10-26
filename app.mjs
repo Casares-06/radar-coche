@@ -431,7 +431,13 @@ document.addEventListener("submit", async event => {
     const editId = route().startsWith("editar/") ? route().split("/")[1] : "";
     const car = readForm(form);
     const errors = validateCar(car);
-    if (errors.length) return notify(errors.join(" "), true);
+    if (errors.length) {
+      notify(errors.join(" "), true);
+      const first = !car.make ? "make" : !car.model ? "model" : errors[0].includes("URL") ? "url" :
+        errors[0].includes("año") ? "year" : errors[0].includes("precio") ? "priceCash" : "km";
+      form.elements.namedItem(first)?.focus();
+      return;
+    }
     try { car.url = normalizeUrl(car.url); } catch (error) { return notify(error.message, true); }
     if (car.url && state.cars.some(item => item.url === car.url && item.id !== editId)) {
       return notify("Ese enlace ya está guardado. Abre la ficha existente para editarlo.", true);

@@ -388,6 +388,7 @@ document.addEventListener("click", async event => {
   if (action === "demo") {
     const current = new Set(state.cars.map(car => car.id));
     state.cars.push(...demoCars().filter(car => !current.has(car.id)));
+    if (selectedIds.size < 2) selectedIds = new Set(state.cars.slice(0, 2).map(car => car.id));
     await persist(); render(); notify("Ejemplos ficticios cargados.");
   }
   if (action === "parse-text") {

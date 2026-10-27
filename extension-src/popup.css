@@ -1,0 +1,34 @@
+@font-face{font-family:Geist;src:url("fonts/Geist-400.ttf") format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:Geist;src:url("fonts/Geist-500.ttf") format("truetype");font-weight:500;font-display:swap}
+@font-face{font-family:Geist;src:url("fonts/Geist-700.ttf") format("truetype");font-weight:700;font-display:swap}
+:root{font:14px Geist,"Segoe UI",sans-serif;color:#111820;background:#f2f4f7}
+*{box-sizing:border-box}
+body{width:380px;max-height:580px;margin:0;overflow:auto}
+.top{display:flex;align-items:center;gap:11px;padding:18px 20px 17px;border-bottom:1px solid #dde1e6}
+.mark{width:37px;height:37px;border:1.5px solid #111820;border-radius:8px;display:grid;place-items:center;flex:none}
+.mark svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.top strong,.top span{display:block}
+.top strong{font-size:17px;letter-spacing:-.025em}
+.top div>span{font-size:11px;color:#5d6570;margin-top:2px}
+main{padding:18px 20px 20px}
+.status{display:flex;align-items:center;gap:8px;color:#5d6570;font-size:12px;font-weight:500}
+.dot{width:7px;height:7px;flex:none;border-radius:50%;background:#a0a8b2}
+.status.ready{color:#276346}.status.ready .dot{background:#276346}
+.status.error{color:#a63030}.status.error .dot{background:#a63030}
+h1{font-size:20px;font-weight:500;letter-spacing:-.03em;line-height:1.25;margin:14px 0 4px;overflow-wrap:anywhere;text-wrap:balance}
+.host{font-size:12px;color:#5d6570;margin:0 0 18px;overflow-wrap:anywhere}
+.detected{background:#fff;border:1px solid #dde1e6;border-radius:8px;padding:14px 15px;margin-bottom:15px}
+.detected-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-bottom:1px solid #eceef0;padding-bottom:10px}
+.detected-head strong{font-size:13px;font-weight:500}
+.detected-head span{font-size:11px;color:#5d6570}
+dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:13px 0 0}
+dl div{min-width:0}dt{font-size:11px;color:#5d6570;margin-bottom:3px}dd{margin:0;font-size:14px;font-weight:500;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.message{font-size:12px;color:#5d6570;line-height:1.45;margin:0 0 14px}
+button{font:inherit;width:100%;min-height:43px;border-radius:6px;cursor:pointer;font-weight:500}
+button:focus-visible{outline:3px solid #2d6ccc;outline-offset:2px}
+.primary{display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:white;background:#161b21;border:1px solid #161b21}
+.primary:hover:not(:disabled){background:#343c45}
+.primary:disabled{cursor:not-allowed;color:#8b929b;background:#e5e8ec;border-color:#e0e3e7}
+.secondary{margin-top:8px;background:#fff;border:1px solid #c9cfd6;color:#111820}
+.secondary:hover{background:#f7f9fa}
+.foot{font-size:11px;line-height:1.45;color:#707883;margin:17px 0 0;border-top:1px solid #dde1e6;padding-top:12px}

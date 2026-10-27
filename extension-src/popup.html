@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Radar Coche · Añadir anuncio</title>
+  <link rel="stylesheet" href="popup.css">
+  <script type="module" src="popup.mjs"></script>
+</head>
+<body>
+  <header class="top">
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 36 36"><path d="M4 23.5h28M8 23.5l3-8h14l3 8M10 27h.01M26 27h.01M8 23.5v5M28 23.5v5"/><path d="M13 15.5l2-4h6l2 4"/></svg></span>
+    <div><strong>Radar Coche</strong><span>Captura del anuncio abierto</span></div>
+  </header>
+  <main>
+    <div class="status" role="status" aria-live="polite"><span class="dot" id="status-dot"></span><span id="status-text">Leyendo la pestaña…</span></div>
+    <h1 id="page-title">Comprobando el anuncio</h1>
+    <p id="page-host" class="host"></p>
+    <div id="detected" class="detected" hidden>
+      <div class="detected-head"><strong>Datos detectados</strong><span id="field-count"></span></div>
+      <dl id="fields"></dl>
+    </div>
+    <p id="message" class="message">La lectura usa solo la pestaña activa cuando pulsas el icono.</p>
+    <button id="add" class="primary" type="button" disabled>Añadir anuncio <span aria-hidden="true">↗</span></button>
+    <button id="open" class="secondary" type="button">Ver mis coches</button>
+    <p class="foot">Confirmarás los campos antes de guardarlos. La nota no certifica el estado mecánico.</p>
+  </main>
+</body>
+</html>

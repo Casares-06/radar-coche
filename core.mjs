@@ -66,27 +66,49 @@ export function normalizeUrl(raw) {
 }
 
 export function parseListingText(raw) {
-  const text = String(raw || "").replace(/\u00a0/g, " ");
+  const text = String(raw || "").replace(/\u00a0/g, " ").slice(0, 30000);
+  const plain = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-ES");
   const out = {};
-  const price = text.match(/(?<!\d)(\d{1,3}(?:[. ]\d{3})+|\d{4,6})\s*(?:€|euros?)/i)
-    || text.match(/(?<!\d)(\d{1,3}(?:[. ]\d{3})+|\d{4,6})\s*€/i);
-  if (price) out.priceCash = cleanNumber(price[1]);
-  const kms = text.match(/(?<!\d)(\d{1,3}(?:[. ]\d{3})+|\d{4,6})\s*(?:km|kilómetros?)\b/i);
+  const amount = "(\\d{1,3}(?:[. ]\\d{3})+|\\d{4,6})";
+  const cashBefore = plain.match(new RegExp(`(?:precio\\s+(?:al\\s+)?contado|al\\s+contado|sin\\s+financiar|pago\\s+al\\s+contado)[^\\d\\n]{0,25}${amount}\\s*(?:€|euros?)?`, "i"));
+  const cashAfter = plain.match(new RegExp(`${amount}\\s*(?:€|euros?)?\\s*(?:al\\s+contado|sin\\s+financiar)`, "i"));
+  const financedBefore = plain.match(new RegExp(`(?:precio\\s+financiado|financiado|financiando)[^\\d\\n]{0,25}${amount}\\s*(?:€|euros?)?`, "i"));
+  const financedAfter = plain.match(new RegExp(`${amount}\\s*(?:€|euros?)?\\s*(?:financiado|financiando)`, "i"));
+  if (cashBefore || cashAfter) out.priceCash = cleanNumber((cashBefore || cashAfter)[1]);
+  if (financedBefore || financedAfter) out.priceFinanced = cleanNumber((financedBefore || financedAfter)[1]);
+  const prices = [...plain.matchAll(new RegExp(`(?<!\\d)${amount}\\s*(?:€|euros?)`, "gi"))].map(match => cleanNumber(match[1]));
+  if (!out.priceCash && prices.length === 1 && prices[0] !== out.priceFinanced) out.priceCash = prices[0];
+  if (!out.priceCash && prices.length === 2 && out.priceFinanced) out.priceCash = prices.find(value => value !== out.priceFinanced);
+  const kms = plain.match(/(?<!\d)(\d{1,3}(?:[. ]\d{3})+|\d{4,7})[ \t]*(?:km|kilometros?)\b/i)
+    || plain.match(/(?:kilometraje|kilometros|km)[ \t]*[:\-]?[ \t]*(\d{1,3}(?:[. ]\d{3})+|\d{4,7})\b/i);
   if (kms) out.km = cleanNumber(kms[1]);
-  const year = text.match(/\b(?:19[89]\d|20[0-3]\d)\b/);
-  if (year && Number(year[0]) <= new Date().getFullYear() + 1) out.year = Number(year[0]);
-  const lower = text.toLocaleLowerCase("es-ES");
-  for (const [fuel, terms] of [
-    ["Eléctrico", ["eléctrico", "electric"]],
-    ["Híbrido enchufable", ["híbrido enchufable", "phev"]],
-    ["Híbrido", ["híbrido", "hybrid"]],
-    ["Diésel", ["diésel", "diesel", "gasoil"]],
-    ["Gasolina", ["gasolina"]],
-  ]) {
-    if (terms.some((term) => lower.includes(term))) { out.fuel = fuel; break; }
+  const year = plain.match(/(?:ano|matriculacion|primera matriculacion)\s*[:\-]?\s*((?:19[89]|20[0-3])\d)\b/i)
+    || plain.match(/\b(?:19[89]\d|20[0-3]\d)\b/);
+  if (year) {
+    const foundYear = Number(year[1] || year[0]);
+    if (foundYear <= new Date().getFullYear() + 1) out.year = foundYear;
   }
-  if (/\b(automático|automática|dsg|cvt)\b/i.test(text)) out.gearbox = "Automático";
-  else if (/\bmanual\b/i.test(text)) out.gearbox = "Manual";
+  for (const [fuel, terms] of [
+    ["Híbrido enchufable", ["hibrido enchufable", "phev", "plug-in hybrid"]],
+    ["Híbrido", ["hibrido", "hybrid", "hev"]],
+    ["Eléctrico", ["electrico", "electric", "bev"]],
+    ["Diésel", ["diesel", "gasoil"]],
+    ["Gasolina", ["gasolina", "gasoline", "petrol"]],
+  ]) {
+    if (terms.some((term) => plain.includes(term))) { out.fuel = fuel; break; }
+  }
+  const gearboxLine = plain.match(/(?:cambio|transmision|caja de cambios)\s*[:\-]?\s*([^\n·|]{1,35})/i)?.[1] || "";
+  const isManual = value => /\bmanual(?:es)?\b/.test(value);
+  const isAutomatic = value => /\bautomatic[oa]s?\b|\bdsg\b|\bcvt\b|\btiptronic\b|\bs[ -]?tronic\b/.test(value);
+  if (isManual(gearboxLine) && !isAutomatic(gearboxLine)) out.gearbox = "Manual";
+  else if (isAutomatic(gearboxLine) && !isManual(gearboxLine)) out.gearbox = "Automático";
+  else if (isManual(plain) !== isAutomatic(plain)) out.gearbox = isManual(plain) ? "Manual" : "Automático";
+  const seats = plain.match(/(?:numero de\s+)?(?:plazas|asientos|ocupantes)\s*[:\-]?\s*(\d{1,2})\b/i)
+    || plain.match(/\b(\d{1,2})\s*(?:plazas|asientos)\b/i);
+  if (seats && Number(seats[1]) >= 1 && Number(seats[1]) <= 20) out.seats = Number(seats[1]);
+  const label = plain.match(/(?:etiqueta(?: ambiental)?|distintivo(?: ambiental)?)\s*[:\-]?\s*(sin etiqueta|cero emisiones|0|eco|b|c)\b/i);
+  if (label) out.environmentLabel = label[1] === "sin etiqueta" ? "Sin etiqueta" :
+    label[1] === "cero emisiones" ? "0" : label[1].toUpperCase();
   return out;
 }
 

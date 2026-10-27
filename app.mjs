@@ -2,8 +2,8 @@ import {
   FUELS, GEARBOXES, LABELS, STATUSES, EVIDENCE, DEFAULT_PROFILE,
   activeQuestions, carName, demoCars, euro, evaluate, kmText,
   normalizeUrl, parseListingText, validateCar,
-} from "./core.mjs?v=20261026-2";
-import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261026-2";
+} from "./core.mjs?v=20261027-1";
+import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261027-1";
 
 const view = document.querySelector("#view");
 const toast = document.querySelector("#toast");
@@ -38,6 +38,7 @@ async function persist() {
 }
 function updateChrome() {
   document.querySelector("#profile-name").textContent = state.profile.name || "Mi búsqueda";
+  document.querySelector("#profile-summary").textContent = `${state.profile.maxPrice ? `Hasta ${euro(state.profile.maxPrice)}` : "Sin precio máximo"} · ${state.profile.minYear ? `Desde ${state.profile.minYear}` : "Sin año mínimo"}`;
   document.querySelector("#nav-count").textContent = state.cars.length;
   const current = route().split("/")[0];
   document.querySelectorAll("[data-route]").forEach(link => {
@@ -47,7 +48,7 @@ function updateChrome() {
   });
 }
 function head(title, subtitle = "", actions = "") {
-  return `<header class="page-head"><div><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>${actions ? `<div class="head-actions">${actions}</div>` : ""}</header>`;
+  return `<header class="page-head"><div><div class="eyebrow"><span class="eyebrow-dot"></span> RADAR / ${esc(title)}</div><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>${actions ? `<div class="head-actions">${actions}</div>` : ""}</header>`;
 }
 function button(href, label, primary = false) {
   return `<a class="btn ${primary ? "btn-primary" : ""}" href="${esc(href)}">${esc(label)}</a>`;
@@ -82,14 +83,23 @@ function renderOverview() {
       <div class="value"><strong class="score-value">${esc(scoreText(result))}</strong><small>Encaje</small></div>
       <div class="value"><strong>${result.verified}/${result.questionCount}</strong><small>Verificadas</small></div>
     </div>`).join("");
-  return head("Tu selección", `Perfil: ${state.profile.name} · Las notas miden encaje con tus límites, no estado mecánico.`,
-    button("#nuevo", "Añadir coche", true)) +
-    `<section class="stats" aria-label="Resumen">${stats.map(([label, value], index) =>
-      `<div class="stat"><span class="stat-label">${esc(label)}</span><strong class="${index === 1 ? "accent" : ""}">${value}</strong></div>`).join("")}</section>
+  return head("Vista general", "Un espacio para elegir, comparar y verificar antes de hablar con el vendedor.",
+    button("#nuevo", "＋ Añadir anuncio", true)) +
+    `<section class="overview-lead" aria-label="Tu mesa de decisión">
+      <div class="lead-copy"><span class="lead-kicker">TU MESA DE DECISIÓN <span class="lead-index">/ 01</span></span>
+        <h2>Cada coche, con sus<br><em>datos y dudas a la vista.</em></h2>
+        <p>Guarda anuncios, mira cuánto encajan con tu búsqueda y lleva las preguntas importantes al vendedor.</p>
+        <div class="lead-actions"><a class="btn btn-primary" href="#coches">Ver candidatos <span aria-hidden="true">↗</span></a><a class="lead-link" href="#perfil">Ajustar límites →</a></div>
+      </div>
+      <div class="lead-visual" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><svg viewBox="0 0 440 250" role="presentation"><path class="road" d="M5 192h430"/><path class="car-outline" d="M50 164h25l26-55c5-11 13-16 25-16h171c11 0 20 6 26 17l26 54h32c14 0 24 10 24 24v15H34v-15c0-14 7-24 16-24Z"/><path class="car-detail" d="M108 160h222M127 102l-19 58m180-58 41 58M210 102v58"/><circle cx="108" cy="197" r="23"/><circle cx="331" cy="197" r="23"/><circle class="wheel-inner" cx="108" cy="197" r="8"/><circle class="wheel-inner" cx="331" cy="197" r="8"/></svg><div class="visual-caption">01 / 03 &nbsp; ENCUENTRA · REVISA · DECIDE</div></div>
+    </section>
+    <div class="section-head overview-section"><div><span class="section-kicker">TU ACTIVIDAD</span><h2>En números</h2></div><span class="section-aside">Todo se actualiza al guardar un coche</span></div>
+    <section class="stats" aria-label="Resumen">${stats.map(([label, value], index) =>
+      `<div class="stat"><span class="stat-index">0${index + 1}</span><span class="stat-label">${esc(label)}</span><strong class="${index === 1 ? "accent" : ""}">${value}</strong></div>`).join("")}</section>
     <div class="overview-grid">
-      <section><div class="section-head"><h2>Primero, los que merecen revisión</h2><a class="btn btn-link btn-small" href="#coches">Ver todos</a></div>
+      <section><div class="section-head"><div><span class="section-kicker">SELECCIÓN</span><h2>Para mirar de cerca</h2></div><a class="btn btn-link btn-small" href="#coches">Ver todos →</a></div>
         <div class="panel">${rows || `<div class="empty"><h3>Empieza con un anuncio</h3><p>Guarda un coche que estés valorando. Puedes introducir los datos a mano o pegar el texto del anuncio.</p>${button("#nuevo", "Añadir mi primer coche", true)} <button class="btn" data-action="demo">Cargar dos ejemplos ficticios</button></div>`}</div></section>
-      <section><div class="section-head"><h2>Próxima comprobación</h2></div>
+      <section><div class="section-head"><div><span class="section-kicker">SIGUIENTE PASO</span><h2>Por comprobar</h2></div></div>
         <div class="panel">${chosen ? `<strong>${esc(carName(chosen.car))}</strong><p class="panel-sub">Pide pruebas antes de confiar en el anuncio.</p>
           <ul class="next-list">${next.map(q => `<li class="signal"><b aria-hidden="true"></b><span>${esc(q.text)}</span></li>`).join("") || "<li>Todas las preguntas tienen una respuesta registrada.</li>"}</ul>
           <a class="btn btn-link" href="#coche/${encodeURIComponent(chosen.car.id)}">Abrir ficha →</a>` :
@@ -124,7 +134,7 @@ function listBody() {
       <div class="subline">${esc(car.year ?? "Año pendiente")} · ${esc(kmText(car.km))} · Encaje ${esc(scoreText(r))} · ${r.verified}/${r.questionCount} verificadas</div></div>`; }).join("")}</div>`;
 }
 function renderCars() {
-  return head("Mis coches", `${state.cars.length} anuncios guardados en este navegador.`, button("#nuevo", "Añadir coche", true)) +
+  return head("Candidatos", `${state.cars.length} anuncios guardados en este navegador.`, button("#nuevo", "Añadir anuncio", true)) +
     `<div class="filters"><div class="field search"><label for="filter-search">Buscar en mis coches</label><input id="filter-search" type="search" placeholder="Marca, modelo, lugar…" value="${esc(filterText)}"></div>
       <div class="field"><label for="filter-status">Estado</label><select id="filter-status">${selectOptions(STATUSES, filterStatus, "Todos")}</select></div></div>
     <div id="car-results">${listBody()}</div>`;
@@ -313,9 +323,9 @@ function renderData() {
         <p class="fine">La web y la extensión guardan datos por separado. Puedes moverlos con este archivo.</p></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Probar sin anuncios reales</h2><p>Los ejemplos están marcados como ficticios y no representan ofertas del mercado.</p></div>
       <div class="settings-panel"><button class="btn" data-action="demo">Cargar dos ejemplos ficticios</button></div></div>
-    <div class="settings-row"><div class="settings-copy"><h2>Extensión de Chrome</h2><p>Captura el anuncio abierto al pulsar el icono. Revisa los campos antes de guardarlos.</p></div>
+    <div class="settings-row"><div class="settings-copy"><h2>Extensión de Chrome</h2><p>Abre un popup junto al icono, detecta los datos disponibles y te deja revisarlos antes de guardarlos.</p></div>
       <div class="settings-panel">${inExtension ?
-        `<p>Ya estás usando la extensión. Pulsa su icono mientras ves un anuncio compatible para abrir esta ficha con los datos detectados.</p>` :
+        `<p>Ya estás usando la extensión. Pulsa su icono mientras ves un anuncio compatible y elige «Añadir anuncio» en el popup.</p>` :
         `<p>Descarga el ZIP, descomprímelo y entra en <code>chrome://extensions</code>. Activa «Modo desarrollador», pulsa «Cargar descomprimida» y selecciona la carpeta extraída.</p><a class="btn" href="./radar-coche-extension.zip" download>Descargar extensión ZIP</a>`}
         <p class="fine">La captura automática está desactivada en Wallapop y Milanuncios. La extensión y la web guardan datos por separado; utiliza la copia JSON para moverlos.</p></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Alcance y privacidad</h2><p>Esta versión funciona sin cuenta, servidor de datos, anuncios propios ni API de IA.</p></div>
@@ -338,7 +348,7 @@ function render() {
     datos: renderData,
   };
   view.innerHTML = (pages[name] || renderOverview)();
-  document.title = `${({ inicio: "Tu selección", coches: "Mis coches", nuevo: "Añadir coche", editar: "Editar coche", coche: "Ficha del coche", comparar: "Comparar", perfil: "Mi búsqueda", datos: "Datos y ayuda" })[name] || "Radar Coche"} · Radar Coche`;
+  document.title = `${({ inicio: "Vista general", coches: "Candidatos", nuevo: "Añadir coche", editar: "Editar coche", coche: "Ficha del coche", comparar: "Comparar", perfil: "Mi búsqueda", datos: "Datos y ayuda" })[name] || "Radar Coche"} · Radar Coche`;
   document.querySelector("#sidebar").classList.remove("open");
   document.querySelector("#menu-toggle").setAttribute("aria-expanded", "false");
   document.querySelector("#menu-toggle").setAttribute("aria-label", "Abrir menú");
@@ -532,11 +542,11 @@ if (capture) {
     draft = {
       ...capture.fields,
       url: capture.url || "",
-      sourceText: capture.selectedText || "",
+      sourceText: capture.sourceText || capture.selectedText || "",
       origins: capture.origins || {},
       captureWarning: "La extensión ha leído datos visibles o metadatos. Confirma cada campo: el anuncio puede estar incompleto o mostrar un precio condicionado.",
     };
-    const suggested = parseListingText(capture.selectedText || "");
+    const suggested = parseListingText(capture.sourceText || capture.selectedText || "");
     for (const [key, value] of Object.entries(suggested)) {
       if (draft[key] == null || draft[key] === "") {
         draft[key] = value; draft.origins[key] = "texto seleccionado; revisa";

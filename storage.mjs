@@ -53,7 +53,7 @@ export function checkState(value) {
         }
       }
       return {
-        id: str(car.id, 100), demo: car.demo === true,
+        id: str(car.id, 100), demo: car.demo === true || /^demo-(?:leon|golf)$/.test(car.id),
         make: str(car.make), model: str(car.model), version: str(car.version), url,
         priceCash: number(car.priceCash, 1_000_000), priceFinanced: number(car.priceFinanced, 1_000_000),
         year: number(car.year, 2100), km: number(car.km, 2_000_000),
@@ -64,6 +64,7 @@ export function checkState(value) {
         sellerType: ["Particular", "Profesional"].includes(car.sellerType) ? car.sellerType : "",
         status: STATUSES.includes(car.status) ? car.status : "Por revisar",
         notes: str(car.notes, 8000), sourceText: str(car.sourceText, 8000),
+        advancedProfileId: str(car.advancedProfileId, 80), engineId: str(car.engineId, 80),
         answers, origins, createdAt: date(car.createdAt), updatedAt: date(car.updatedAt),
       };
     }).filter(car => car.id);

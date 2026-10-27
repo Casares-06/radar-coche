@@ -1,5 +1,6 @@
 import { candidateFromCapture } from "./candidate.mjs";
 import { readCurrentPage } from "./capture.mjs";
+import { advancedChecks, matchingProfiles } from "./advanced.mjs";
 
 const BLOCKED_HOSTS = ["wallapop.com", "milanuncios.com"];
 const labels = {
@@ -8,6 +9,7 @@ const labels = {
   environmentLabel: "Etiqueta", location: "Localidad",
 };
 let candidate = null;
+let advancedProfile = null;
 
 const element = id => document.getElementById(id);
 function status(text, kind = "") {
@@ -55,6 +57,18 @@ async function inspectCurrentTab() {
     status("Anuncio listo para revisar", "ready");
     element("message").textContent = "Los datos detectados son sugerencias. Comprueba especialmente precio, cambio y kilómetros.";
     element("add").disabled = false;
+    const profiles = candidate.fields.year ? matchingProfiles(candidate.fields) : [];
+    if (profiles.length) {
+      advancedProfile = profiles[0];
+      const checks = advancedChecks({ ...candidate.fields, advancedProfileId: advancedProfile.id });
+      element("tabs").hidden = false;
+      element("advanced-name").textContent = `${advancedProfile.make} ${advancedProfile.model} · ${advancedProfile.generation}`;
+      element("advanced-description").textContent = checks.length ? `${checks.length} ${checks.length === 1 ? "comprobación" : "comprobaciones"} para preguntar y documentar.` : "Confirma motor y versión para ver qué preguntas corresponden a esta unidad.";
+      element("advanced-checks").replaceChildren(...checks.slice(0, 3).map(check => {
+        const row = document.createElement("div"); row.textContent = check.title; return row;
+      }));
+      element("add-advanced").disabled = false;
+    }
   } catch (error) {
     status("No se puede capturar", "error");
     element("page-title").textContent = "Añade el anuncio a mano";
@@ -63,9 +77,10 @@ async function inspectCurrentTab() {
   }
 }
 
-element("add").addEventListener("click", async () => {
+async function addCandidate(advanced = false) {
   if (!candidate?.canAdd) return;
-  element("add").disabled = true;
+  const button = element(advanced ? "add-advanced" : "add");
+  button.disabled = true;
   status("Preparando la ficha…");
   try {
     await chrome.storage.local.set({ pendingCapture: {
@@ -73,13 +88,25 @@ element("add").addEventListener("click", async () => {
       origins: candidate.origins,
       url: candidate.url,
       sourceText: candidate.sourceText,
+      notes: candidate.notes,
+      advancedRequested: advanced,
+      advancedProfileId: advanced ? advancedProfile?.id : "",
     } });
     await chrome.tabs.create({ url: chrome.runtime.getURL("index.html#nuevo") });
     window.close();
   } catch (error) {
     status("No se pudo abrir la ficha", "error");
     element("message").textContent = error.message || "Prueba de nuevo o añade el anuncio a mano.";
-    element("add").disabled = false;
+    button.disabled = false;
+  }
+}
+element("add").addEventListener("click", () => addCandidate(false));
+element("add-advanced").addEventListener("click", () => addCandidate(true));
+
+for (const tabName of ["basic", "advanced"]) element(`tab-${tabName}`).addEventListener("click", () => {
+  for (const name of ["basic", "advanced"]) {
+    element(`tab-${name}`).setAttribute("aria-selected", String(name === tabName));
+    element(`${name}-panel`).hidden = name !== tabName;
   }
 });
 

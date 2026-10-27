@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { candidateFromCapture } from "../candidate.mjs";
 import { readCurrentPage } from "../extension-src/capture.mjs";
+import { matchingProfiles } from "../advanced.mjs";
 
 test("el popup aparece como acción sin panel lateral ni permisos permanentes", () => {
   const manifest = JSON.parse(readFileSync(new URL("../extension-src/manifest.json", import.meta.url), "utf8"));
@@ -33,6 +34,7 @@ test("lee datos visibles y estructurados de la pestaña activa", () => {
   assert.equal(candidate.fields.km, 85000);
   assert.equal(candidate.fields.gearbox, "Manual");
   assert.equal(candidate.fields.seats, 5);
+  assert.equal(matchingProfiles(candidate.fields)[0]?.id, "leon-iii");
 });
 
 test("detecta cambio y plazas en texto visible aunque falten metadatos", () => {

@@ -32,3 +32,23 @@ button:focus-visible{outline:3px solid #2d6ccc;outline-offset:2px}
 .secondary{margin-top:8px;background:#fff;border:1px solid #c9cfd6;color:#111820}
 .secondary:hover{background:#f7f9fa}
 .foot{font-size:11px;line-height:1.45;color:#707883;margin:17px 0 0;border-top:1px solid #dde1e6;padding-top:12px}
+:root{color:#172b50;background:#f7f9fe}
+.top{background:#edf3fd;border-bottom-color:#d8e4f5}
+.mark{border-color:#2858bd;color:#2858bd;background:#e2ebfc}
+.top strong{color:#173262}.top div>span,.host,.message{color:#657895}
+.status.ready{color:#2455b8}.status.ready .dot{background:#2455b8}
+h1{font-size:21px;font-weight:700;color:#1a3262}
+.detected{border-color:#dae4f2;border-radius:10px}
+.primary{background:#2555be;border-color:#2555be;border-radius:8px;font-weight:700}
+.primary:hover:not(:disabled){background:#1746a8}
+.secondary{border-radius:8px;border-color:#c5d3e6;color:#2852a5;font-weight:600}
+.popup-tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;margin:0 0 15px;background:#e8eef8;border-radius:9px}
+.popup-tabs button{min-height:36px;border:0;background:transparent;color:#637693;font-size:11px;font-weight:700;padding:0 6px}
+.popup-tabs button[aria-selected="true"]{background:#fff;color:#2456ba;box-shadow:0 1px 4px #2852a51c}
+.tab-star{color:#678de0}
+.advanced-popup-card{background:#eaf1ff;border:1px solid #d5e2fb;border-radius:11px;padding:18px;margin-bottom:14px}
+.popup-kicker{font-size:10px;letter-spacing:.15em;font-weight:700;color:#6080be}
+.advanced-popup-card h2{font-size:19px;letter-spacing:-.045em;margin:8px 0;color:#183b78}
+.advanced-popup-card p{color:#5b7197;font-size:12px;line-height:1.45;margin:0 0 14px}
+.popup-checks{display:grid;gap:7px}.popup-checks div{background:#fff;border:1px solid #dce6f7;border-radius:7px;padding:9px 11px;color:#325182;font-size:12px;font-weight:600}
+[hidden]{display:none!important}

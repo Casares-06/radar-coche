@@ -16,12 +16,23 @@
     <div class="status" role="status" aria-live="polite"><span class="dot" id="status-dot"></span><span id="status-text">Leyendo la pestaña…</span></div>
     <h1 id="page-title">Comprobando el anuncio</h1>
     <p id="page-host" class="host"></p>
+    <div id="tabs" class="popup-tabs" role="tablist" aria-label="Tipo de captura" hidden>
+      <button id="tab-basic" role="tab" aria-selected="true" aria-controls="basic-panel" type="button">Captura normal</button>
+      <button id="tab-advanced" role="tab" aria-selected="false" aria-controls="advanced-panel" type="button">Análisis avanzado <span class="tab-star">✦</span></button>
+    </div>
+    <div id="basic-panel" role="tabpanel" aria-labelledby="tab-basic">
     <div id="detected" class="detected" hidden>
       <div class="detected-head"><strong>Datos detectados</strong><span id="field-count"></span></div>
       <dl id="fields"></dl>
     </div>
     <p id="message" class="message">La lectura usa solo la pestaña activa cuando pulsas el icono.</p>
     <button id="add" class="primary" type="button" disabled>Añadir anuncio <span aria-hidden="true">↗</span></button>
+    </div>
+    <div id="advanced-panel" role="tabpanel" aria-labelledby="tab-advanced" hidden>
+      <div class="advanced-popup-card"><span class="popup-kicker">FICHA DISPONIBLE</span><h2 id="advanced-name"></h2><p id="advanced-description"></p><div id="advanced-checks" class="popup-checks"></div></div>
+      <p class="message">Confirmarás generación y motor. Las alertas son preguntas para comprobar, no un diagnóstico.</p>
+      <button id="add-advanced" class="primary" type="button" disabled>Añadir y revisar <span aria-hidden="true">↗</span></button>
+    </div>
     <button id="open" class="secondary" type="button">Ver mis coches</button>
     <p class="foot">Confirmarás los campos antes de guardarlos. La nota no certifica el estado mecánico.</p>
   </main>

@@ -3,7 +3,8 @@ import {
   activeQuestions, carName, demoCars, euro, evaluate, kmText,
   normalizeUrl, parseListingText, validateCar,
 } from "./core.mjs?v=20261027-1";
-import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261027-1";
+import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261027-5";
+import { advancedChecks, CATALOG_REVIEWED, matchingProfiles, MODEL_PROFILES, profileById } from "./advanced.mjs?v=20261027-5";
 
 const view = document.querySelector("#view");
 const toast = document.querySelector("#toast");
@@ -12,6 +13,7 @@ let draft = null;
 let selectedIds = new Set();
 let filterText = "";
 let filterStatus = "";
+let advancedFilter = "";
 let toastTimer;
 
 const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -64,14 +66,17 @@ function field(name, label, value = "", type = "text", extra = "", origin = "") 
 
 function renderOverview() {
   const assessments = state.cars.map(car => ({ car, result: evaluate(car, state.profile) }));
-  const viable = assessments.filter(({ car, result }) => !result.fails.length && !result.negative.length && car.status !== "Descartado")
+  const viable = assessments.filter(({ car, result }) => !result.fails.length && !result.negative.length && !advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") && car.status !== "Descartado")
     .sort((a, b) => (b.result.score ?? -1) - (a.result.score ?? -1));
-  const waiting = assessments.filter(({ result }) => result.verified < result.questionCount);
+  const waiting = assessments.filter(({ car, result }) => result.verified < result.questionCount || advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status !== "Verificado"));
   const chosen = viable[0];
-  const next = chosen ? activeQuestions(chosen.car).filter(q => !chosen.car.answers?.[q.key] || chosen.car.answers[q.key].status === "Pendiente").slice(0, 3) : [];
+  const next = chosen ? [
+    ...advancedChecks(chosen.car).filter(check => !chosen.car.answers?.[`advanced:${check.id}`] || chosen.car.answers[`advanced:${check.id}`].status === "Pendiente").map(check => ({ text: check.question })),
+    ...activeQuestions(chosen.car).filter(q => !chosen.car.answers?.[q.key] || chosen.car.answers[q.key].status === "Pendiente"),
+  ].slice(0, 3) : [];
   const stats = [
     ["Guardados", state.cars.length],
-    ["Sin alertas conocidas", viable.length],
+    ["Dentro de mis límites", viable.length],
     ["Finalistas", state.cars.filter(car => car.status === "Finalista").length],
     ["Con pruebas pendientes", waiting.length],
   ];
@@ -127,7 +132,7 @@ function listBody() {
     <tbody>${cars.map(car => { const r = evaluate(car, state.profile); return `<tr>
       <td><a class="row-link" href="#coche/${encodeURIComponent(car.id)}">${esc(carName(car))}</a><small>${esc(car.location || "Ubicación pendiente")}${car.demo ? " · Ejemplo ficticio" : ""}</small></td>
       <td class="num">${esc(euro(car.priceCash))}</td><td class="num">${esc(car.year ?? "—")}</td><td class="num">${esc(car.km == null ? "—" : num(car.km))}</td>
-      <td><span class="status ${r.fails.length ? "negative" : ""}">${esc(r.fails.length ? "Fuera de límites" : car.status || "Por revisar")}</span></td>
+      <td><span class="status ${r.fails.length || advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "negative" : ""}">${esc(r.fails.length ? "Fuera de límites" : advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "Revisión negativa" : car.status || "Por revisar")}</span></td>
       <td class="num">${esc(scoreText(r))}</td><td class="num">${r.verified}/${r.questionCount}</td></tr>`; }).join("")}</tbody></table></div>
     <div class="panel car-list-mobile">${cars.map(car => { const r = evaluate(car, state.profile); return `<div class="car-mobile">
       <div class="car-mobile-top"><a href="#coche/${encodeURIComponent(car.id)}">${esc(carName(car))}</a><span class="car-mobile-price">${esc(euro(car.priceCash))}</span></div>
@@ -140,10 +145,24 @@ function renderCars() {
     <div id="car-results">${listBody()}</div>`;
 }
 
+function renderAdvanced() {
+  const q = advancedFilter.toLocaleLowerCase("es-ES");
+  const profiles = MODEL_PROFILES.filter(profile => `${profile.make} ${profile.model} ${profile.generation} ${profile.checks.map(check => `${check.title} ${check.scope}`).join(" ")}`.toLocaleLowerCase("es-ES").includes(q));
+  const cars = state.cars.filter(car => matchingProfiles(car).length && `${carName(car)} ${car.year || ""}`.toLocaleLowerCase("es-ES").includes(q));
+  return head("Búsqueda avanzada", "Fichas técnicas para filtrar anuncios y preparar una revisión mecánica con pruebas.", button("#nuevo", "Añadir anuncio", true)) +
+    `<section class="advanced-hero"><div><span class="section-kicker">CATÁLOGO INICIAL · 6 MODELOS</span><h2>Del anuncio a las<br><em>preguntas que importan.</em></h2><p>Relaciona marca, modelo, generación y motor con comprobaciones documentadas. Las fichas nunca diagnostican una unidad concreta.</p></div><div class="advanced-hero-number">06<span>fichas con fuentes</span></div></section>
+    <div class="field advanced-search"><label for="advanced-search">Buscar modelo o generación</label><input id="advanced-search" type="search" value="${esc(advancedFilter)}" placeholder="Golf, Ibiza, Focus…"></div>
+    <div id="advanced-results"><div class="section-head"><div><span class="section-kicker">TUS ANUNCIOS</span><h2>Compatibles</h2></div><span class="section-aside">${cars.length} encontrados</span></div>
+      <div class="advanced-car-grid">${cars.map(car => { const profile = profileById(car.advancedProfileId); const match = matchingProfiles(car)[0]; return `<a class="advanced-car" href="#coche/${encodeURIComponent(car.id)}"><span>${esc(car.make)} / ${esc(car.year || "Año pendiente")}</span><strong>${esc(carName(car))}</strong><small>${profile ? `${advancedChecks(car).length} comprobaciones activas` : `Ficha disponible: ${match.generation}`}</small><b aria-hidden="true">↗</b></a>`; }).join("") || `<div class="advanced-empty">Todavía no has guardado anuncios de estos modelos. ${button("#nuevo", "Añadir uno")}</div>`}</div>
+      <div class="section-head"><div><span class="section-kicker">FUENTES ABIERTAS</span><h2>Modelos cubiertos</h2></div><span class="section-aside">Revisado el ${esc(new Date(`${CATALOG_REVIEWED}T00:00:00`).toLocaleDateString("es-ES"))}</span></div>
+      <div class="catalog-grid">${profiles.map((profile, index) => `<article class="catalog-card"><span class="catalog-index">0${index + 1} / ${esc(profile.make.toUpperCase())}</span><h3>${esc(profile.model)}</h3><p class="catalog-generation">${esc(profile.generation)}</p><p>${esc(profile.checks.map(check => check.title).join(" · "))}</p><div class="catalog-foot"><span>${profile.checks.length} ${profile.checks.length === 1 ? "comprobación" : "comprobaciones"}</span><a href="${esc(profile.checks[0].url)}" target="_blank" rel="noopener noreferrer">Fuente ↗</a></div></article>`).join("") || `<div class="advanced-empty">No hay fichas con esa búsqueda.</div>`}</div></div>
+    <p class="fine">Las fuentes describen incidencias o puntos de inspección en una generación o motor. Pregunta, revisa facturas y encarga una inspección independiente. Consulta las campañas pendientes por bastidor según <a href="https://revista.dgt.es/es/tramites/2025/1219-Llamada-a-revision.shtml" target="_blank" rel="noopener noreferrer">la DGT</a>.</p>`;
+}
+
 function readForm(form) {
   const f = new FormData(form);
   const editId = route().startsWith("editar/") ? route().split("/")[1] : "";
-  const base = editId ? (draft?.id === editId ? draft : {}) : (draft?.id ? {} : draft || {});
+  const base = editId ? (draft?.id === editId ? draft : carById(editId) || {}) : (draft?.id ? {} : draft || {});
   return {
     ...base,
     url: String(f.get("url") || "").trim(),
@@ -163,7 +182,17 @@ function readForm(form) {
     sellerType: String(f.get("sellerType") || ""),
     notes: String(f.get("notes") || "").trim(),
     sourceText: String(f.get("sourceText") || "").trim().slice(0, 8000),
+    advancedProfileId: String(f.get("advancedProfileId") || ""),
+    engineId: String(f.get("engineId") || ""),
   };
+}
+function advancedPicker(car) {
+  const profiles = matchingProfiles(car);
+  const active = profiles.find(profile => profile.id === car.advancedProfileId);
+  return `<section class="advanced-picker" id="advanced-picker"><div class="advanced-picker-intro"><span class="section-kicker">FICHAS TÉCNICAS</span><h2>Análisis del modelo</h2><p>Confirma generación y motor antes de activar preguntas específicas. Los problemas documentados son pistas para revisar este anuncio.</p></div>
+    ${profiles.length ? `<div class="form-grid"><div class="field"><label for="advancedProfileId">Generación confirmada</label><select id="advancedProfileId" name="advancedProfileId"><option value="">Sin confirmar · análisis normal</option>${profiles.map(profile => `<option value="${esc(profile.id)}" ${active?.id === profile.id ? "selected" : ""}>${esc(profile.make)} ${esc(profile.model)} ${esc(profile.generation)}</option>`).join("")}</select></div>
+      <div class="field"><label for="engineId">Motor exacto</label><select id="engineId" name="engineId" ${active?.engines.length ? "" : "disabled"}><option value="">Por confirmar</option>${active?.engines.map(engine => `<option value="${esc(engine.id)}" ${car.engineId === engine.id ? "selected" : ""}>${esc(engine.label)}</option>`).join("") || ""}</select></div></div>
+      <p class="fine">${active ? `${active.checks.length} comprobaciones documentadas · Mira el código de motor en la documentación.` : "Elige una ficha solo si coincide con el coche. Puedes cambiarla más adelante."}</p>` : `<div class="advanced-no-match">Aún no hay ficha para estos datos. Puedes guardar el coche normalmente. <a href="#avanzado">Ver modelos disponibles →</a></div>`}</section>`;
 }
 function renderForm(editId = "") {
   const old = editId ? (draft?.id === editId ? draft : carById(editId)) : (draft?.id ? {} : draft || {});
@@ -197,6 +226,7 @@ function renderForm(editId = "") {
         <div class="field"><label for="sellerType">Vendedor</label><select id="sellerType" name="sellerType">${selectOptions(["Particular", "Profesional"], car.sellerType)}</select></div>
         <div class="field wide"><label for="notes">Notas personales</label><textarea id="notes" name="notes" placeholder="Qué te interesa confirmar, condiciones, impresión inicial…">${esc(car.notes || "")}</textarea></div>
       </div>
+      ${advancedPicker(car)}
       <div class="form-actions"><a class="btn" href="${editId ? `#coche/${encodeURIComponent(editId)}` : "#coches"}">Cancelar</a><button class="btn btn-primary" type="submit">Guardar coche</button></div>
     </form>`;
 }
@@ -206,6 +236,11 @@ function riskList(car, result) {
   if (result.fails.length) items.push(...result.fails.map(x => `No cumple: ${x}.`));
   if (result.negative.length) items.push(...result.negative.map(x => `Comprobación negativa: ${x}`));
   if (result.missing.length) items.push(`Faltan datos para ${result.missing.join(", ").toLocaleLowerCase("es-ES")}.`);
+  const modelChecks = advancedChecks(car);
+  const failedModelChecks = modelChecks.filter(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple");
+  if (failedModelChecks.length) items.push(`Revisión del modelo con resultado negativo: ${failedModelChecks.map(check => check.title).join(", ")}.`);
+  const pendingModelChecks = modelChecks.filter(check => !car.answers?.[`advanced:${check.id}`]?.status || car.answers[`advanced:${check.id}`].status === "Pendiente");
+  if (pendingModelChecks.length) items.push(`${pendingModelChecks.length} ${pendingModelChecks.length === 1 ? "comprobación del modelo pendiente" : "comprobaciones del modelo pendientes"} de prueba.`);
   if (car.priceFinanced != null) items.push("El precio financiado puede exigir intereses, comisiones o permanencia. Pide el total pagado.");
   if (result.verified === 0) items.push("Ninguna pregunta está respaldada por una comprobación registrada.");
   if (!items.length) items.push("No hay alertas por los datos anotados. Una revisión independiente sigue siendo necesaria.");
@@ -213,6 +248,17 @@ function riskList(car, result) {
 }
 function missingCar() {
   return head("No encuentro este coche", "Puede haberse eliminado o el enlace ya no es válido.", button("#coches", "Volver a mis coches"));
+}
+function detailAdvanced(car) {
+  const profile = profileById(car.advancedProfileId);
+  const suggested = matchingProfiles(car);
+  if (!profile || !suggested.some(item => item.id === profile.id)) return suggested.length ?
+    `<section class="panel advanced-detail-intro"><span class="section-kicker">FICHA DISPONIBLE</span><h2>Revisión específica para este modelo</h2><p>Hay datos sobre ${esc(suggested.map(item => item.generation).join(" o "))}. Confirma la generación y el motor para activar preguntas útiles.</p>${button(`#editar/${encodeURIComponent(car.id)}`, "Confirmar versión y activar", true)}</section>` : "";
+  const checks = advancedChecks(car);
+  const verified = checks.filter(check => car.answers?.[`advanced:${check.id}`]?.status === "Verificado").length;
+  return `<section class="panel advanced-detail"><div class="advanced-detail-head"><div><span class="section-kicker">REVISIÓN DEL MODELO · ${esc(profile.make.toUpperCase())}</span><h2>${esc(profile.model)} ${esc(profile.generation)}</h2><p>${esc(car.engineId ? profile.engines.find(engine => engine.id === car.engineId)?.label || "Motor por confirmar" : "Motor exacto por confirmar")} · ${verified}/${checks.length} comprobaciones verificadas</p></div><span class="advanced-detail-mark">↗</span></div>
+    <div class="notice">Estas alertas describen puntos que conviene comprobar. «Prueba favorable» exige una comprobación; «Incidencia detectada» señala un problema real observado. El encaje sobre 100 no cambia.</div>
+    ${checks.length ? `<form id="advanced-answers-form" data-id="${esc(car.id)}">${checks.map(check => { const answer = car.answers?.[`advanced:${check.id}`] || {}; return `<div class="advanced-check"><div class="advanced-check-top"><span class="advanced-check-scope">${esc(check.scope)}${check.uncertain ? " · Aplicación pendiente de confirmar" : ""}</span><a href="${esc(check.url)}" target="_blank" rel="noopener noreferrer">${esc(check.source)} ↗</a></div><h3>${esc(check.title)}</h3><p>${esc(check.question)}</p><small>Prueba: ${esc(check.proof)}</small><div class="advanced-check-fields"><select name="status:${esc(check.id)}" aria-label="Estado: ${esc(check.title)}">${EVIDENCE.map(value => `<option value="${esc(value)}" ${answer.status === value ? "selected" : ""}>${esc(({ Verificado: "Prueba favorable", "No cumple": "Incidencia detectada" })[value] || value)}</option>`).join("")}</select><input name="note:${esc(check.id)}" value="${esc(answer.note || "")}" placeholder="Qué mostró la prueba o qué falta" aria-label="Nota: ${esc(check.title)}"></div></div>`; }).join("")}<div class="form-actions"><button class="btn btn-primary" type="submit">Guardar revisión del modelo</button></div></form>` : `<p>Con los datos indicados no hay comprobaciones específicas aplicables. Revisa si el motor y el cambio son correctos.</p>`}</section>`;
 }
 function renderDetail(carId) {
   const car = carById(carId);
@@ -235,7 +281,8 @@ function renderDetail(carId) {
         <div class="facts">${facts.map(([label, value]) => `<div class="fact"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>
         ${car.priceFinanced != null ? `<p class="fine">Precio financiado anunciado: <strong>${esc(euro(car.priceFinanced))}</strong>. Compara el coste total documentado.</p>` : ""}
         ${car.url && !car.demo ? `<a class="btn btn-link" href="${esc(car.url)}" target="_blank" rel="noopener noreferrer">Abrir anuncio original ↗</a>` : ""}
-        ${car.notes ? `<p class="fine">Notas: ${esc(car.notes)}</p>` : ""}</section>
+        ${car.notes ? `<div class="listing-notes"><strong>Notas del anuncio y tuyas</strong><p>${esc(car.notes)}</p></div>` : ""}</section>
+      ${detailAdvanced(car)}
       <section class="panel"><h2>Preguntas al vendedor y pruebas</h2><p class="panel-sub">«Lo afirma el vendedor» no equivale a «Verificado». Solo marca «Verificado» si has visto la prueba.</p>
         <form id="answers-form" data-id="${esc(car.id)}">
         ${qs.map(q => {
@@ -262,6 +309,7 @@ function renderCompare() {
     ["Encaje", car => scoreText(evaluate(car, state.profile))],
     ["Requisitos incumplidos", car => evaluate(car, state.profile).fails.length],
     ["Comprobadas", car => { const r = evaluate(car, state.profile); return `${r.verified}/${r.questionCount}`; }],
+    ["Revisión del modelo", car => { const checks = advancedChecks(car); return checks.length ? `${checks.filter(check => car.answers?.[`advanced:${check.id}`]?.status === "Verificado").length}/${checks.length} verificadas${checks.some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? " · hay resultado negativo" : ""}` : matchingProfiles(car).length ? "Ficha disponible" : "Sin ficha"; }],
     ["Precio al contado", car => euro(car.priceCash)],
     ["Precio financiado", car => euro(car.priceFinanced)],
     ["Año", car => car.year ?? "—"],
@@ -314,7 +362,7 @@ function renderData() {
     `<div class="helper-grid">
       <div class="panel"><strong>1. Define límites</strong><p>Precio al contado, año y kilometraje permiten comparar sin mezclar necesidades con suposiciones.</p></div>
       <div class="panel"><strong>2. Guarda candidatos</strong><p>Pega el texto o utiliza la extensión en una página compatible. Revisa siempre lo detectado.</p></div>
-      <div class="panel"><strong>3. Pide pruebas</strong><p>La nota de encaje no describe el estado mecánico. Marca cada respuesta según su evidencia.</p></div>
+      <div class="panel"><strong>3. Pide pruebas</strong><p>La nota de encaje no describe el estado mecánico. En Búsqueda avanzada encontrarás preguntas del modelo con sus fuentes; marca cada respuesta según su evidencia.</p></div>
     </div>
     <div class="settings-row"><div class="settings-copy"><h2>Copias de seguridad</h2><p>El archivo JSON incluye perfil, coches, notas y comprobaciones. La importación sustituye los datos actuales tras confirmación.</p></div>
       <div class="settings-panel"><p>Guardados: <strong>${state.cars.length}</strong> · Último cambio: <strong>${esc(niceDate(state.updatedAt))}</strong></p>
@@ -325,7 +373,7 @@ function renderData() {
       <div class="settings-panel"><button class="btn" data-action="demo">Cargar dos ejemplos ficticios</button></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Extensión de Chrome</h2><p>Abre un popup junto al icono, detecta los datos disponibles y te deja revisarlos antes de guardarlos.</p></div>
       <div class="settings-panel">${inExtension ?
-        `<p>Ya estás usando la extensión. Pulsa su icono mientras ves un anuncio compatible y elige «Añadir anuncio» en el popup.</p>` :
+        `<p>Ya estás usando la extensión. Pulsa su icono mientras ves un anuncio compatible. Si hay ficha del modelo y año, puedes elegir «Análisis avanzado» en el popup.</p>` :
         `<p>Descarga el ZIP, descomprímelo y entra en <code>chrome://extensions</code>. Activa «Modo desarrollador», pulsa «Cargar descomprimida» y selecciona la carpeta extraída.</p><a class="btn" href="./radar-coche-extension.zip" download>Descargar extensión ZIP</a>`}
         <p class="fine">La captura automática está desactivada en Wallapop y Milanuncios. La extensión y la web guardan datos por separado; utiliza la copia JSON para moverlos.</p></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Alcance y privacidad</h2><p>Esta versión funciona sin cuenta, servidor de datos, anuncios propios ni API de IA.</p></div>
@@ -340,6 +388,7 @@ function render() {
   const pages = {
     inicio: renderOverview,
     coches: renderCars,
+    avanzado: renderAdvanced,
     nuevo: () => renderForm(),
     editar: () => renderForm(arg),
     coche: () => renderDetail(arg),
@@ -348,7 +397,7 @@ function render() {
     datos: renderData,
   };
   view.innerHTML = (pages[name] || renderOverview)();
-  document.title = `${({ inicio: "Vista general", coches: "Candidatos", nuevo: "Añadir coche", editar: "Editar coche", coche: "Ficha del coche", comparar: "Comparar", perfil: "Mi búsqueda", datos: "Datos y ayuda" })[name] || "Radar Coche"} · Radar Coche`;
+  document.title = `${({ inicio: "Vista general", coches: "Candidatos", avanzado: "Búsqueda avanzada", nuevo: "Añadir coche", editar: "Editar coche", coche: "Ficha del coche", comparar: "Comparar", perfil: "Mi búsqueda", datos: "Datos y ayuda" })[name] || "Radar Coche"} · Radar Coche`;
   document.querySelector("#sidebar").classList.remove("open");
   document.querySelector("#menu-toggle").setAttribute("aria-expanded", "false");
   document.querySelector("#menu-toggle").setAttribute("aria-label", "Abrir menú");
@@ -385,6 +434,9 @@ Anuncio: ${car.url || "Sin URL"}
 
 ## Preguntas
 ${activeQuestions(car).map(q => `- ${q.text} — ${car.answers?.[q.key]?.status || "Pendiente"}. ${car.answers?.[q.key]?.note || ""}`).join("\n")}
+
+## Revisión del modelo
+${profileById(car.advancedProfileId) ? `${profileById(car.advancedProfileId).make} ${profileById(car.advancedProfileId).model} ${profileById(car.advancedProfileId).generation} · motor ${car.engineId || "por confirmar"}\n${advancedChecks(car).map(check => `- ${check.title}: ${check.question} — ${car.answers?.[`advanced:${check.id}`]?.status || "Pendiente"}. ${car.answers?.[`advanced:${check.id}`]?.note || ""}\n  Fuente: ${check.url}`).join("\n")}` : "Sin ficha confirmada."}
 
 ## Notas
 ${car.notes || "Sin notas."}
@@ -441,6 +493,11 @@ document.addEventListener("submit", async event => {
   if (form.id === "car-form") {
     const editId = route().startsWith("editar/") ? route().split("/")[1] : "";
     const car = readForm(form);
+    if (car.advancedProfileId && !matchingProfiles(car).some(profile => profile.id === car.advancedProfileId)) {
+      return notify("La ficha avanzada no coincide con marca, modelo o año. Confirma la generación.", true);
+    }
+    const selectedProfile = profileById(car.advancedProfileId);
+    if (!selectedProfile?.engines.some(engine => engine.id === car.engineId)) car.engineId = "";
     const errors = validateCar(car);
     if (errors.length) {
       notify(errors.join(" "), true);
@@ -480,6 +537,19 @@ document.addEventListener("submit", async event => {
     car.answers = answers; car.updatedAt = new Date().toISOString();
     await persist(); render(); notify("Comprobaciones guardadas.");
   }
+  if (form.id === "advanced-answers-form") {
+    const car = carById(form.dataset.id);
+    if (!car) return;
+    const data = new FormData(form);
+    const answers = { ...(car.answers || {}) };
+    for (const check of advancedChecks(car)) answers[`advanced:${check.id}`] = {
+      status: String(data.get(`status:${check.id}`) || "Pendiente"),
+      note: String(data.get(`note:${check.id}`) || "").trim().slice(0, 800),
+      updatedAt: new Date().toISOString(),
+    };
+    car.answers = answers; car.updatedAt = new Date().toISOString();
+    await persist(); render(); notify("Revisión del modelo guardada.");
+  }
   if (form.id === "profile-form") {
     const data = new FormData(form);
     const p = { ...state.profile };
@@ -499,12 +569,29 @@ document.addEventListener("input", event => {
     const results = document.querySelector("#car-results");
     if (results) results.innerHTML = listBody();
   }
+  if (event.target.id === "advanced-search") {
+    advancedFilter = event.target.value;
+    const cursor = event.target.selectionStart;
+    view.innerHTML = renderAdvanced();
+    const search = document.querySelector("#advanced-search");
+    search.focus(); search.setSelectionRange(cursor, cursor);
+  }
+  if (["make", "model", "year"].includes(event.target.id) && event.target.closest("#car-form")) {
+    const car = readForm(event.target.form);
+    const picker = document.querySelector("#advanced-picker");
+    if (picker) picker.outerHTML = advancedPicker(car);
+  }
 });
 document.addEventListener("change", async event => {
   const target = event.target;
   if (target.id === "filter-status") {
     filterStatus = target.value;
     document.querySelector("#car-results").innerHTML = listBody();
+  }
+  if (target.id === "advancedProfileId") {
+    const car = readForm(target.form);
+    car.engineId = "";
+    document.querySelector("#advanced-picker").outerHTML = advancedPicker(car);
   }
   if (target.classList.contains("compare-check")) {
     if (target.checked && selectedIds.size >= 4) { target.checked = false; return notify("Puedes comparar hasta cuatro coches.", true); }
@@ -543,6 +630,8 @@ if (capture) {
       ...capture.fields,
       url: capture.url || "",
       sourceText: capture.sourceText || capture.selectedText || "",
+      notes: Array.isArray(capture.notes) && capture.notes.length ? `Del anuncio (sin verificar):\n${capture.notes.map(note => `• ${note}`).join("\n")}` : "",
+      advancedProfileId: capture.advancedRequested && matchingProfiles(capture.fields).some(profile => profile.id === capture.advancedProfileId) ? capture.advancedProfileId : "",
       origins: capture.origins || {},
       captureWarning: "La extensión ha leído datos visibles o metadatos. Confirma cada campo: el anuncio puede estar incompleto o mostrar un precio condicionado.",
     };

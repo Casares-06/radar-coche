@@ -29,6 +29,23 @@ function nameFromHeading(heading) {
   return { make, ...(model && !/^\d{4}$/.test(model) ? { model } : {}) };
 }
 
+export function relevantNotes(raw) {
+  const text = [raw?.selectedText, raw?.description, raw?.structured?.description, raw?.pageText]
+    .filter(Boolean).join("\n").replace(/\r/g, "\n").slice(0, 30000);
+  const signal = /\b(?:revision(?:es)?|mantenimiento|distribuci[oó]n|correa|cadena|itv|garant[ií]a|factura|libro|neum[aá]ticos|frenos|embrague|accidente|siniestr|reparad|aver[ií]a|llaves?|propietari|financia|aceite|bater[ií]a|cambi(?:o|ada)|consumo)\b/i;
+  const seen = new Set();
+  const notes = [];
+  for (const part of text.split(/[\n•]+|(?<=[.!?])\s+/)) {
+    const line = part.replace(/\s+/g, " ").trim();
+    const key = line.toLocaleLowerCase("es-ES");
+    if (line.length < 12 || line.length > 230 || !signal.test(line) || seen.has(key)) continue;
+    if (/cookies|privacidad|condiciones de uso|otros anuncios|newsletter/i.test(line)) continue;
+    seen.add(key); notes.push(line);
+    if (notes.length === 6) break;
+  }
+  return notes;
+}
+
 export function candidateFromCapture(raw) {
   const capture = raw && typeof raw === "object" ? raw : {};
   const fields = {};
@@ -76,6 +93,7 @@ export function candidateFromCapture(raw) {
     url: String(capture.url || ""),
     pageTitle: String(capture.heading || capture.title || "Anuncio abierto").slice(0, 160),
     sourceText: String(capture.selectedText || structured.description || capture.description || capture.pageText || "").slice(0, 8000),
+    notes: relevantNotes(capture),
     fieldCount: count,
   };
 }

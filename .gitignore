@@ -1,2 +1,3 @@
 qa-*.png
+.playwright-cli/
 extension-build/

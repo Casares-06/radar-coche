@@ -1,0 +1,12 @@
+{
+  "name": "Radar Coche",
+  "short_name": "Radar Coche",
+  "description": "Organiza, compara y verifica anuncios de coches usados.",
+  "lang": "es",
+  "start_url": "./#inicio",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fb",
+  "theme_color": "#f7f8fb",
+  "icons": [{ "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

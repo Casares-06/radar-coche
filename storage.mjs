@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE, EVIDENCE, FUELS, GEARBOXES, LABELS, STATUSES, normalizeUrl } from "./core.mjs?v=20261027-1";
+import { DEFAULT_PROFILE, EVIDENCE, FUELS, GEARBOXES, LABELS, STATUSES, normalizeUrl } from "./core.mjs?v=20261028-1";
 
 const KEY = "radar-coche-public-v1";
 export const inExtension = typeof chrome !== "undefined" && !!chrome.runtime?.id && !!chrome.storage?.local;
@@ -19,6 +19,7 @@ export function checkState(value) {
   };
   const list = (input, allowed) => Array.isArray(input) ? input.filter(x => allowed.includes(x)) : [];
   const date = input => typeof input === "string" && Number.isFinite(Date.parse(input)) ? input : new Date().toISOString();
+  const optionalDate = input => typeof input === "string" && Number.isFinite(Date.parse(input)) ? input : "";
   const profile = {
     name: str(value.profile.name, 100) || DEFAULT_PROFILE.name,
     province: str(value.profile.province, 100),
@@ -52,6 +53,17 @@ export function checkState(value) {
           if (key.length <= 80) origins[key] = str(origin, 80);
         }
       }
+      const costs = {};
+      for (const key of ["insuranceAnnual", "taxAnnual", "maintenanceAnnual", "repairReserveAnnual", "transferCost", "fuelL100", "fuelPrice", "energyKwh100", "energyPrice", "electricSharePercent", "financeTotal"]) {
+        costs[key] = number(car.costs?.[key], ["fuelL100", "fuelPrice", "energyKwh100", "energyPrice", "electricSharePercent"].includes(key) ? 100 : 1_000_000);
+      }
+      const history = Array.isArray(car.history) ? car.history.slice(-100).filter(entry => entry && ["priceCash", "priceFinanced", "km", "year"].includes(entry.field)).map(entry => ({
+        field: entry.field, from: number(entry.from, 2_000_000), to: number(entry.to, 2_000_000), at: date(entry.at),
+      })) : [];
+      const activity = Array.isArray(car.activity) ? car.activity.slice(-100).filter(entry => entry && typeof entry === "object").map(entry => ({
+        at: date(entry.at), kind: ["Contacto", "Visita", "Documento", "Decisión", "Otro"].includes(entry.kind) ? entry.kind : "Otro",
+        note: str(entry.note, 800),
+      })).filter(entry => entry.note) : [];
       return {
         id: str(car.id, 100), demo: car.demo === true || /^demo-(?:leon|golf)$/.test(car.id),
         make: str(car.make), model: str(car.model), version: str(car.version), url,
@@ -65,7 +77,10 @@ export function checkState(value) {
         status: STATUSES.includes(car.status) ? car.status : "Por revisar",
         notes: str(car.notes, 8000), sourceText: str(car.sourceText, 8000),
         advancedProfileId: str(car.advancedProfileId, 80), engineId: str(car.engineId, 80),
-        answers, origins, createdAt: date(car.createdAt), updatedAt: date(car.updatedAt),
+        answers, origins, costs, history, activity,
+        warnings: Array.isArray(car.warnings) ? car.warnings.slice(0, 10).map(x => str(x, 300)) : [],
+        lastReviewedAt: optionalDate(car.lastReviewedAt),
+        createdAt: date(car.createdAt), updatedAt: date(car.updatedAt),
       };
     }).filter(car => car.id);
   return {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Radar Coche",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Guarda y revisa anuncios de coches usados en tu navegador. Sin cuenta ni servidor.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage"],

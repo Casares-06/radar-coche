@@ -1,10 +1,11 @@
 import {
-  FUELS, GEARBOXES, LABELS, STATUSES, EVIDENCE, DEFAULT_PROFILE,
+  FUELS, GEARBOXES, LABELS, STATUSES, EVIDENCE, VISIT_CHECKS, DEFAULT_PROFILE,
   activeQuestions, carName, demoCars, euro, evaluate, kmText,
   normalizeUrl, parseListingText, validateCar,
-} from "./core.mjs?v=20261027-1";
-import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261027-5";
+} from "./core.mjs?v=20261028-1";
+import { checkState, inExtension, loadState, saveState, takePendingCapture } from "./storage.mjs?v=20261028-1";
 import { advancedChecks, CATALOG_REVIEWED, matchingProfiles, MODEL_PROFILES, profileById } from "./advanced.mjs?v=20261027-5";
+import { comparablePrices, describeHistory, evidenceSummary, nextSnapshot, ownershipCost, questionText } from "./insights.mjs";
 
 const view = document.querySelector("#view");
 const toast = document.querySelector("#toast");
@@ -132,11 +133,11 @@ function listBody() {
     <tbody>${cars.map(car => { const r = evaluate(car, state.profile); return `<tr>
       <td><a class="row-link" href="#coche/${encodeURIComponent(car.id)}">${esc(carName(car))}</a><small>${esc(car.location || "Ubicación pendiente")}${car.demo ? " · Ejemplo ficticio" : ""}</small></td>
       <td class="num">${esc(euro(car.priceCash))}</td><td class="num">${esc(car.year ?? "—")}</td><td class="num">${esc(car.km == null ? "—" : num(car.km))}</td>
-      <td><span class="status ${r.fails.length || advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "negative" : ""}">${esc(r.fails.length ? "Fuera de límites" : advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "Revisión negativa" : car.status || "Por revisar")}</span></td>
+      <td><span class="status ${r.fails.length || advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "negative" : ""}">${esc(r.fails.length ? "Fuera de límites" : advancedChecks(car).some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? "Revisión negativa" : car.warnings?.length ? "Datos por aclarar" : car.status || "Por revisar")}</span></td>
       <td class="num">${esc(scoreText(r))}</td><td class="num">${r.verified}/${r.questionCount}</td></tr>`; }).join("")}</tbody></table></div>
     <div class="panel car-list-mobile">${cars.map(car => { const r = evaluate(car, state.profile); return `<div class="car-mobile">
       <div class="car-mobile-top"><a href="#coche/${encodeURIComponent(car.id)}">${esc(carName(car))}</a><span class="car-mobile-price">${esc(euro(car.priceCash))}</span></div>
-      <div class="subline">${esc(car.year ?? "Año pendiente")} · ${esc(kmText(car.km))} · Encaje ${esc(scoreText(r))} · ${r.verified}/${r.questionCount} verificadas</div></div>`; }).join("")}</div>`;
+      <div class="subline">${esc(car.year ?? "Año pendiente")} · ${esc(kmText(car.km))} · Encaje ${esc(scoreText(r))} · ${r.verified}/${r.questionCount} verificadas${car.warnings?.length ? " · Datos por aclarar" : ""}</div></div>`; }).join("")}</div>`;
 }
 function renderCars() {
   return head("Candidatos", `${state.cars.length} anuncios guardados en este navegador.`, button("#nuevo", "Añadir anuncio", true)) +
@@ -184,6 +185,8 @@ function readForm(form) {
     sourceText: String(f.get("sourceText") || "").trim().slice(0, 8000),
     advancedProfileId: String(f.get("advancedProfileId") || ""),
     engineId: String(f.get("engineId") || ""),
+    costs: Object.fromEntries(["insuranceAnnual", "taxAnnual", "maintenanceAnnual", "repairReserveAnnual", "transferCost", "fuelL100", "fuelPrice", "energyKwh100", "energyPrice", "electricSharePercent", "financeTotal"]
+      .map(key => [key, numberFrom(f.get(key))])),
   };
 }
 function advancedPicker(car) {
@@ -227,6 +230,20 @@ function renderForm(editId = "") {
         <div class="field wide"><label for="notes">Notas personales</label><textarea id="notes" name="notes" placeholder="Qué te interesa confirmar, condiciones, impresión inicial…">${esc(car.notes || "")}</textarea></div>
       </div>
       ${advancedPicker(car)}
+      <details class="cost-editor"><summary>Coste de uso · supuestos opcionales</summary><p class="fine">Introduce tus propios presupuestos. El cálculo no obtiene tarifas ni precios externos.</p>
+        <div class="form-grid">
+          ${field("insuranceAnnual", "Seguro anual (€)", car.costs?.insuranceAnnual, "number", 'min="0"')}
+          ${field("taxAnnual", "Impuesto anual (€)", car.costs?.taxAnnual, "number", 'min="0"')}
+          ${field("maintenanceAnnual", "Mantenimiento anual (€)", car.costs?.maintenanceAnnual, "number", 'min="0"')}
+          ${field("repairReserveAnnual", "Reserva anual para reparaciones (€)", car.costs?.repairReserveAnnual, "number", 'min="0"')}
+          ${field("transferCost", "Transferencia y gastos iniciales (€)", car.costs?.transferCost, "number", 'min="0"')}
+          ${field("fuelL100", "Consumo estimado (l/100 km)", car.costs?.fuelL100, "number", 'min="0" max="100" step="0.1"')}
+          ${field("fuelPrice", "Precio del combustible (€/l)", car.costs?.fuelPrice, "number", 'min="0" max="100" step="0.01"')}
+          ${field("energyKwh100", "Consumo eléctrico (kWh/100 km)", car.costs?.energyKwh100, "number", 'min="0" max="100" step="0.1"')}
+          ${field("energyPrice", "Precio de carga (€/kWh)", car.costs?.energyPrice, "number", 'min="0" max="100" step="0.01"')}
+          ${field("electricSharePercent", "Porcentaje de km eléctricos si es enchufable", car.costs?.electricSharePercent, "number", 'min="0" max="100" step="1"')}
+          ${field("financeTotal", "Total de la financiación (€), si lo conoces", car.costs?.financeTotal, "number", 'min="0"')}
+        </div></details>
       <div class="form-actions"><a class="btn" href="${editId ? `#coche/${encodeURIComponent(editId)}` : "#coches"}">Cancelar</a><button class="btn btn-primary" type="submit">Guardar coche</button></div>
     </form>`;
 }
@@ -243,6 +260,7 @@ function riskList(car, result) {
   if (pendingModelChecks.length) items.push(`${pendingModelChecks.length} ${pendingModelChecks.length === 1 ? "comprobación del modelo pendiente" : "comprobaciones del modelo pendientes"} de prueba.`);
   if (car.priceFinanced != null) items.push("El precio financiado puede exigir intereses, comisiones o permanencia. Pide el total pagado.");
   if (result.verified === 0) items.push("Ninguna pregunta está respaldada por una comprobación registrada.");
+  if (car.warnings?.length) items.push(`${car.warnings.length} contradicción(es) detectada(s) en el anuncio.`);
   if (!items.length) items.push("No hay alertas por los datos anotados. Una revisión independiente sigue siendo necesaria.");
   return items;
 }
@@ -265,6 +283,10 @@ function renderDetail(carId) {
   if (!car) return missingCar();
   const result = evaluate(car, state.profile);
   const qs = activeQuestions(car);
+  const evidence = evidenceSummary(car);
+  const market = comparablePrices(car, state.cars);
+  const cost = ownershipCost(car, state.profile.annualKm);
+  const old = car.lastReviewedAt && Date.now() - Date.parse(car.lastReviewedAt) > 14 * 86400000;
   const facts = [
     ["Año", car.year], ["Kilómetros", kmText(car.km)], ["Combustible", car.fuel || "—"],
     ["Cambio", car.gearbox || "—"], ["Etiqueta", car.environmentLabel || "—"], ["Plazas", car.seats ?? "—"],
@@ -274,16 +296,22 @@ function renderDetail(carId) {
     `${button("#coches", "Volver")}${button(`#editar/${encodeURIComponent(car.id)}`, "Editar datos")}`) +
     `<div class="detail-layout"><div class="detail-main">
       <div class="detail-kpis"><div><span>Encaje con tu búsqueda</span><strong class="score-value">${esc(scoreText(result))}</strong></div>
-        <div><span>Comprobadas</span><strong>${result.verified}/${result.questionCount}</strong></div>
+        <div><span>Pruebas verificadas</span><strong>${evidence.counts.verified}/${evidence.total}</strong></div>
         <div><span>Precio al contado</span><strong>${esc(euro(car.priceCash))}</strong></div></div>
       ${result.fails.length ? `<div class="notice error">Este coche incumple ${result.fails.length} requisito(s) de tu perfil. Revisa el desglose antes de compararlo.</div>` : ""}
+      ${car.warnings?.length ? `<section class="panel conflict-panel"><h2>Datos que no cuadran</h2><p class="panel-sub">La captura encontró valores distintos. Corrígelos tras comprobar el anuncio.</p><ul class="risk-list">${car.warnings.map(w => `<li>${esc(w)}</li>`).join("")}</ul><button class="btn btn-small" data-action="resolve-warnings" data-id="${esc(car.id)}">Ya he comprobado estos datos</button></section>` : ""}
+      ${old ? `<div class="notice">Hace más de 14 días que no revisas este anuncio. Comprueba precio y disponibilidad antes de decidir.</div>` : ""}
       <section class="panel"><div class="section-head" style="margin:0 0 10px"><h2>Datos del anuncio</h2></div>
         <div class="facts">${facts.map(([label, value]) => `<div class="fact"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>
+        <p class="fine">Origen de los campos: ${Object.keys(car.origins || {}).length ? Object.entries(car.origins).map(([key, source]) => `${esc(key)}: ${esc(source)}`).join(" · ") : "Introducidos a mano; aún sin prueba documental"}.</p>
         ${car.priceFinanced != null ? `<p class="fine">Precio financiado anunciado: <strong>${esc(euro(car.priceFinanced))}</strong>. Compara el coste total documentado.</p>` : ""}
         ${car.url && !car.demo ? `<a class="btn btn-link" href="${esc(car.url)}" target="_blank" rel="noopener noreferrer">Abrir anuncio original ↗</a>` : ""}
         ${car.notes ? `<div class="listing-notes"><strong>Notas del anuncio y tuyas</strong><p>${esc(car.notes)}</p></div>` : ""}</section>
+      <section class="panel decision-panel"><h2>Qué falta para decidir</h2><p class="panel-sub">${evidence.counts.pending} pendientes · ${evidence.counts.seller} afirmaciones del vendedor · ${evidence.counts.negative} incidencias registradas. La cobertura de datos para la nota es del ${result.dataCoverage}%.</p>
+        <ol class="priority-list">${evidence.next.map(q => `<li>${esc(q.text)}</li>`).join("") || "<li>Las preguntas registradas ya tienen una conclusión. Revisa sus pruebas antes de comprar.</li>"}</ol>
+        <button class="btn btn-small" data-action="copy-questions" data-id="${esc(car.id)}">Copiar preguntas para el vendedor</button></section>
       ${detailAdvanced(car)}
-      <section class="panel"><h2>Preguntas al vendedor y pruebas</h2><p class="panel-sub">«Lo afirma el vendedor» no equivale a «Verificado». Solo marca «Verificado» si has visto la prueba.</p>
+      <details class="panel disclosure"><summary>Preguntas al vendedor y pruebas <span>${result.verified}/${result.questionCount} verificadas</span></summary><p class="panel-sub">«Lo afirma el vendedor» no equivale a «Verificado». Solo marca «Verificado» si has visto la prueba.</p>
         <form id="answers-form" data-id="${esc(car.id)}">
         ${qs.map(q => {
           const answer = car.answers?.[q.key] || {};
@@ -291,12 +319,22 @@ function renderDetail(carId) {
             <select name="status:${esc(q.key)}" aria-label="Estado: ${esc(q.text)}">${EVIDENCE.map(value => `<option ${answer.status === value ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></div>
             <p>${esc(q.tip)}</p><input name="note:${esc(q.key)}" value="${esc(answer.note || "")}" placeholder="Anota qué prueba has visto o qué falta" aria-label="Nota: ${esc(q.text)}"></div>`;
         }).join("")}
-        <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar comprobaciones</button></div></form></section>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Guardar comprobaciones</button></div></form></details>
+      <details class="panel disclosure"><summary>Lista para la visita <span>${VISIT_CHECKS.filter(([key]) => car.answers?.[`visit:${key}`]?.status === "Verificado").length}/${VISIT_CHECKS.length} comprobadas</span></summary><p class="panel-sub">Sirve para anotar observaciones. Un síntoma requiere revisión profesional; marcar una casilla no certifica el coche.</p><form id="visit-form" data-id="${esc(car.id)}">${VISIT_CHECKS.map(([key, label]) => { const answer = car.answers?.[`visit:${key}`] || {}; return `<div class="question"><div class="question-head"><strong>${esc(label)}</strong><select name="status:${esc(key)}" aria-label="Estado: ${esc(label)}">${["Pendiente", "Verificado", "No cumple"].map(status => `<option ${answer.status === status ? "selected" : ""}>${status}</option>`).join("")}</select></div><input name="note:${esc(key)}" value="${esc(answer.note || "")}" placeholder="Qué observaste o quién lo revisó" aria-label="Nota: ${esc(label)}"></div>`; }).join("")}<div class="form-actions"><button class="btn btn-primary" type="submit">Guardar visita</button></div></form></details>
     </div><div class="detail-side">
       <section class="panel"><h2>De dónde sale el encaje</h2><p class="panel-sub">Solo usa tus límites y los campos disponibles. Datos suficientes: ${result.dataCoverage}%.</p>
         <div class="breakdown">${result.checks.map(part => `<div class="breakdown-row"><span title="${esc(part.detail)}">${esc(part.label)}</span><div class="bar"><span style="width:${Math.round((part.ratio ?? 0) * 100)}%"></span></div><strong>${part.ratio == null ? "—" : Math.round(part.ratio * 100) + "%"}</strong></div>`).join("")}</div>
         <p class="fine">La nota no evalúa estado mecánico ni precio de mercado. «—» significa que falta el dato.</p></section>
       <section class="panel"><h2>Riesgos y dudas</h2><ul class="risk-list">${riskList(car, result).map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>
+      <section class="panel"><h2>Coste de uso</h2><p class="panel-sub">Estimación a 3 años con ${num(state.profile.annualKm)} km/año. Tus cifras son supuestos, no presupuestos.</p>
+        <strong class="cost-figure">${cost.total == null ? "—" : `${cost.complete ? "" : "Desde "}${esc(euro(Math.round(cost.total)))}`}</strong><p class="fine">${cost.complete ? "Supuestos completos para este cálculo." : "Cálculo parcial: faltan uno o más costes."} Incluye compra ${esc(euro(cost.purchase))}, gastos iniciales ${esc(euro(car.costs?.transferCost || 0))} y ${esc(euro(Math.round(cost.knownAnnual)))} anuales conocidos.</p>
+        ${button(`#editar/${encodeURIComponent(car.id)}`, "Editar supuestos")}</section>
+      <section class="panel"><h2>Precio frente a tus comparables</h2><p>${market?.enough ? `Mediana de ${market.count} coches guardados parecidos: <strong>${esc(euro(market.median))}</strong>. ${market.difference == null ? "Este anuncio no tiene precio al contado." : market.difference === 0 ? "Este anuncio coincide con esa mediana." : `Este anuncio está ${esc(euro(Math.abs(market.difference)))} ${market.difference > 0 ? "por encima" : "por debajo"} de ella.`}` : `Aún no hay suficientes anuncios comparables (${market?.count || 0}/3).`}</p><p class="fine">Misma marca, modelo, combustible y cambio; año ±2 y km ±40.000. Si confirmaste generación o motor, también deben coincidir. Solo compara lo que has guardado, no todo el mercado.</p></section>
+      <section class="panel"><h2>Historial de la ficha</h2>${car.history?.length ? `<ol class="history-list">${car.history.slice(-8).reverse().map(entry => `<li><span>${esc(niceDate(entry.at))}</span> ${esc(describeHistory(entry))}</li>`).join("")}</ol>` : `<p class="panel-sub">Los cambios de precio, kilómetros y año que hagas desde ahora aparecerán aquí.</p>`}
+        <button class="btn btn-small" data-action="reviewed" data-id="${esc(car.id)}">Marcar anuncio revisado hoy</button><p class="fine">Última revisión: ${esc(niceDate(car.lastReviewedAt))}</p></section>
+      <section class="panel"><h2>Contacto y visita</h2><form id="activity-form" data-id="${esc(car.id)}"><div class="field"><label for="activity-kind">Tipo</label><select id="activity-kind" name="kind">${["Contacto", "Visita", "Documento", "Decisión", "Otro"].map(x => `<option>${x}</option>`).join("")}</select></div><div class="field"><label for="activity-note">Qué ocurrió</label><textarea id="activity-note" name="note" maxlength="800" required placeholder="Ej.: El vendedor enviará las facturas el viernes"></textarea></div><button class="btn btn-small" type="submit">Añadir al seguimiento</button></form>
+        ${car.activity?.length ? `<ol class="history-list">${car.activity.slice(-8).reverse().map(item => `<li><span>${esc(niceDate(item.at))} · ${esc(item.kind)}</span> ${esc(item.note)}</li>`).join("")}</ol>` : ""}</section>
+      <section class="panel"><h2>Comprobaciones oficiales</h2><p class="panel-sub">Solicita tú mismo el informe reducido gratuito de la DGT. Si hay incidencias o el coche es finalista, valora el informe completo y una inspección independiente.</p><a class="btn btn-link" href="https://www.dgt.es/nuestros-servicios/tu-vehiculo/tus-vehiculos/informe-de-un-vehiculo/index.html" target="_blank" rel="noopener noreferrer">Abrir informes DGT ↗</a></section>
       <section class="panel"><h2>Seguimiento</h2><p class="panel-sub">Actualiza tu decisión al hablar con el vendedor o visitar el coche.</p>
         <div class="field" style="margin-top:16px"><label for="car-status">Estado</label><select id="car-status" data-id="${esc(car.id)}">${STATUSES.map(value => `<option ${car.status === value ? "selected" : ""}>${esc(value)}</option>`).join("")}</select></div>
         <div class="data-actions"><button class="btn btn-small" data-action="dossier" data-id="${esc(car.id)}">Descargar ficha</button><button class="btn btn-small btn-danger" data-action="delete-car" data-id="${esc(car.id)}">Eliminar</button></div></section>
@@ -309,6 +347,10 @@ function renderCompare() {
     ["Encaje", car => scoreText(evaluate(car, state.profile))],
     ["Requisitos incumplidos", car => evaluate(car, state.profile).fails.length],
     ["Comprobadas", car => { const r = evaluate(car, state.profile); return `${r.verified}/${r.questionCount}`; }],
+    ["Evidencia", car => { const e = evidenceSummary(car); return `${e.counts.verified}/${e.total} verificadas · ${e.counts.negative} incidencias`; }],
+    ["Datos contradictorios", car => car.warnings?.length || 0],
+    ["Coste conocido a 3 años", car => { const c = ownershipCost(car, state.profile.annualKm); return c.total == null ? "—" : `${euro(Math.round(c.total))}${c.complete ? "" : " · parcial"}`; }],
+    ["Comparables guardados", car => { const m = comparablePrices(car, state.cars); return m?.enough ? `${m.count} · mediana ${euro(m.median)}` : `${m?.count || 0}/3`; }],
     ["Revisión del modelo", car => { const checks = advancedChecks(car); return checks.length ? `${checks.filter(check => car.answers?.[`advanced:${check.id}`]?.status === "Verificado").length}/${checks.length} verificadas${checks.some(check => car.answers?.[`advanced:${check.id}`]?.status === "No cumple") ? " · hay resultado negativo" : ""}` : matchingProfiles(car).length ? "Ficha disponible" : "Sin ficha"; }],
     ["Precio al contado", car => euro(car.priceCash)],
     ["Precio financiado", car => euro(car.priceFinanced)],
@@ -366,7 +408,7 @@ function renderData() {
     </div>
     <div class="settings-row"><div class="settings-copy"><h2>Copias de seguridad</h2><p>El archivo JSON incluye perfil, coches, notas y comprobaciones. La importación sustituye los datos actuales tras confirmación.</p></div>
       <div class="settings-panel"><p>Guardados: <strong>${state.cars.length}</strong> · Último cambio: <strong>${esc(niceDate(state.updatedAt))}</strong></p>
-        <div class="data-actions"><button class="btn btn-primary" data-action="export">Descargar copia JSON</button>
+        <div class="data-actions"><button class="btn btn-primary" data-action="export">Descargar copia JSON</button><button class="btn" data-action="export-csv">Descargar resumen CSV</button>
           <label class="btn" for="backup-file">Importar copia JSON</label><input id="backup-file" type="file" accept=".json,application/json" hidden></div>
         <p class="fine">La web y la extensión guardan datos por separado. Puedes moverlos con este archivo.</p></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Probar sin anuncios reales</h2><p>Los ejemplos están marcados como ficticios y no representan ofertas del mercado.</p></div>
@@ -377,7 +419,7 @@ function renderData() {
         `<p>Descarga el ZIP, descomprímelo y entra en <code>chrome://extensions</code>. Activa «Modo desarrollador», pulsa «Cargar descomprimida» y selecciona la carpeta extraída.</p><a class="btn" href="./radar-coche-extension.zip" download>Descargar extensión ZIP</a>`}
         <p class="fine">La captura automática está desactivada en Wallapop y Milanuncios. La extensión y la web guardan datos por separado; utiliza la copia JSON para moverlos.</p></div></div>
     <div class="settings-row"><div class="settings-copy"><h2>Alcance y privacidad</h2><p>Esta versión funciona sin cuenta, servidor de datos, anuncios propios ni API de IA.</p></div>
-      <div class="settings-panel"><p>Solo se guarda información que introduces o confirmas en tu navegador. No enviamos tus fichas a Radar Coche. La versión web no puede leer otras pestañas. La extensión solicita acceso temporal cuando la pulsas y no realiza búsquedas masivas.</p>
+      <div class="settings-panel"><p>Solo se guarda información que introduces o confirmas en tu navegador. No enviamos tus fichas a Radar Coche. La versión web no puede leer otras pestañas. La extensión solicita acceso temporal cuando la pulsas y no realiza búsquedas masivas.</p><p class="fine">La web se puede instalar y abrir sin conexión tras cargarla una vez; los datos continúan en este navegador. Exporta una copia JSON antes de limpiar sus datos.</p>
         <p class="fine">La extracción puede fallar; los campos vacíos no significan que un coche carezca de esa característica. No guardes documentos personales ni teléfonos del vendedor en las notas.</p>
         <p class="fine">Versión pública de prueba · Reglas de encaje 1.0 · ${inExtension ? "Extensión Chrome" : "Web estática"}</p></div></div>`;
 }
@@ -411,6 +453,19 @@ function download(filename, content, mime) {
   anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function exportCsv() {
+  const columns = ["Marca", "Modelo", "Versión", "Año", "Kilómetros", "Contado EUR", "Financiado EUR", "Combustible", "Cambio", "Estado", "Encaje sobre 100", "Verificadas", "Incidencias", "URL"];
+  const cell = value => {
+    const raw = String(value ?? "");
+    const safe = /^[\s]*[=+@-]/.test(raw) ? `'${raw}` : raw;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const rows = state.cars.map(car => {
+    const result = evaluate(car, state.profile), evidence = evidenceSummary(car);
+    return [car.make, car.model, car.version, car.year, car.km, car.priceCash, car.priceFinanced, car.fuel, car.gearbox, car.status, result.score, evidence.counts.verified, evidence.counts.negative, car.url].map(cell).join(";");
+  });
+  return "\uFEFF" + [columns.map(cell).join(";"), ...rows].join("\r\n");
+}
 function dossier(car) {
   const r = evaluate(car, state.profile);
   return `# ${carName(car)}
@@ -427,6 +482,8 @@ Anuncio: ${car.url || "Sin URL"}
 
 ## Evaluación
 - Encaje con mi búsqueda: ${scoreText(r)} (${r.dataCoverage}% de datos evaluables)
+- Evidencia: ${evidenceSummary(car).counts.verified}/${evidenceSummary(car).total} verificadas; ${evidenceSummary(car).counts.negative} incidencias.
+- Advertencias de captura: ${(car.warnings || []).join("; ") || "Ninguna registrada"}
 - Comprobadas: ${r.verified}/${r.questionCount}
 - Requisitos incumplidos: ${r.fails.join("; ") || "Ninguno con los datos disponibles"}
 - Campos pendientes: ${r.missing.join("; ") || "Ninguno"}
@@ -438,8 +495,17 @@ ${activeQuestions(car).map(q => `- ${q.text} — ${car.answers?.[q.key]?.status 
 ## Revisión del modelo
 ${profileById(car.advancedProfileId) ? `${profileById(car.advancedProfileId).make} ${profileById(car.advancedProfileId).model} ${profileById(car.advancedProfileId).generation} · motor ${car.engineId || "por confirmar"}\n${advancedChecks(car).map(check => `- ${check.title}: ${check.question} — ${car.answers?.[`advanced:${check.id}`]?.status || "Pendiente"}. ${car.answers?.[`advanced:${check.id}`]?.note || ""}\n  Fuente: ${check.url}`).join("\n")}` : "Sin ficha confirmada."}
 
+## Lista de visita
+${VISIT_CHECKS.map(([key, label]) => `- ${label}: ${car.answers?.[`visit:${key}`]?.status || "Pendiente"}. ${car.answers?.[`visit:${key}`]?.note || ""}`).join("\n")}
+
 ## Notas
 ${car.notes || "Sin notas."}
+
+## Seguimiento
+${(car.activity || []).map(item => `- ${niceDate(item.at)} · ${item.kind}: ${item.note}`).join("\n") || "Sin entradas."}
+
+## Coste de uso
+${ownershipCost(car, state.profile.annualKm).total == null ? "Sin cálculo." : `${euro(Math.round(ownershipCost(car, state.profile.annualKm).total))} a 3 años; ${ownershipCost(car, state.profile.annualKm).complete ? "supuestos completos" : "cálculo parcial"}.`}
 `;
 }
 
@@ -473,9 +539,26 @@ document.addEventListener("click", async event => {
     download(`radar-coche-copia-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), "application/json");
     notify("Copia descargada.");
   }
+  if (action === "export-csv") {
+    download(`radar-coche-resumen-${new Date().toISOString().slice(0, 10)}.csv`, exportCsv(), "text/csv;charset=utf-8");
+    notify("Resumen CSV descargado.");
+  }
   if (action === "dossier") {
     const car = carById(target.dataset.id);
     if (car) download(`radar-coche-${car.make.toLowerCase().replace(/\W+/g, "-")}.md`, dossier(car), "text/markdown");
+  }
+  if (action === "copy-questions") {
+    const car = carById(target.dataset.id);
+    if (car) try { await navigator.clipboard.writeText(questionText(car)); notify("Preguntas copiadas."); }
+    catch { notify("No se pudo copiar. Descarga la ficha para consultar las preguntas.", true); }
+  }
+  if (action === "reviewed") {
+    const car = carById(target.dataset.id);
+    if (car) { car.lastReviewedAt = new Date().toISOString(); await persist(); render(); notify("Revisión registrada."); }
+  }
+  if (action === "resolve-warnings") {
+    const car = carById(target.dataset.id);
+    if (car) { car.warnings = []; car.lastReviewedAt = new Date().toISOString(); await persist(); render(); notify("Advertencias marcadas como revisadas."); }
   }
   if (action === "delete-car") {
     const car = carById(target.dataset.id);
@@ -502,7 +585,8 @@ document.addEventListener("submit", async event => {
     if (errors.length) {
       notify(errors.join(" "), true);
       const first = !car.make ? "make" : !car.model ? "model" : errors[0].includes("URL") ? "url" :
-        errors[0].includes("año") ? "year" : errors[0].includes("precio") ? "priceCash" : "km";
+        errors[0].includes("año") ? "year" : errors[0].includes("precio") ? "priceCash" :
+        errors[0].includes("coste") ? "insuranceAnnual" : "km";
       form.elements.namedItem(first)?.focus();
       return;
     }
@@ -515,6 +599,15 @@ document.addEventListener("submit", async event => {
     car.status = old?.status || "Por revisar";
     car.answers = old?.answers || {};
     car.origins = (draft && (!draft.id || draft.id === editId) ? draft.origins : null) || old?.origins || {};
+    for (const key of ["make", "model", "version", "year", "km", "priceCash", "priceFinanced", "fuel", "gearbox", "seats", "environmentLabel", "location"]) {
+      if (old && old[key] !== car[key] && !(draft && draft[key] === car[key] && draft.origins?.[key]) || !old && car[key] != null && car[key] !== "" && !car.origins[key]) {
+        car.origins[key] = "introducido o corregido a mano; sin prueba documental";
+      }
+    }
+    car.warnings = draft?.warnings || old?.warnings || [];
+    car.activity = old?.activity || [];
+    car.lastReviewedAt = old?.lastReviewedAt || "";
+    car.history = nextSnapshot(old, car);
     car.createdAt = old?.createdAt || new Date().toISOString();
     car.updatedAt = new Date().toISOString();
     if (old) state.cars = state.cars.map(item => item.id === old.id ? car : item);
@@ -550,6 +643,17 @@ document.addEventListener("submit", async event => {
     car.answers = answers; car.updatedAt = new Date().toISOString();
     await persist(); render(); notify("Revisión del modelo guardada.");
   }
+  if (form.id === "visit-form") {
+    const car = carById(form.dataset.id);
+    if (!car) return;
+    const data = new FormData(form), answers = { ...(car.answers || {}) };
+    for (const [key] of VISIT_CHECKS) answers[`visit:${key}`] = {
+      status: String(data.get(`status:${key}`) || "Pendiente"),
+      note: String(data.get(`note:${key}`) || "").trim().slice(0, 800),
+      updatedAt: new Date().toISOString(),
+    };
+    car.answers = answers; car.updatedAt = new Date().toISOString(); await persist(); render(); notify("Lista de visita guardada.");
+  }
   if (form.id === "profile-form") {
     const data = new FormData(form);
     const p = { ...state.profile };
@@ -560,6 +664,15 @@ document.addEventListener("submit", async event => {
     if (!p.name) return notify("Pon un nombre al perfil.", true);
     state.profile = p;
     await persist(); render(); notify("Búsqueda guardada. Los encajes se han recalculado.");
+  }
+  if (form.id === "activity-form") {
+    const car = carById(form.dataset.id);
+    if (!car) return;
+    const data = new FormData(form);
+    const note = String(data.get("note") || "").trim().slice(0, 800);
+    if (!note) return notify("Escribe qué ocurrió.", true);
+    car.activity = [...(car.activity || []), { at: new Date().toISOString(), kind: String(data.get("kind") || "Otro"), note }].slice(-100);
+    car.updatedAt = new Date().toISOString(); await persist(); render(); notify("Seguimiento actualizado.");
   }
 });
 
@@ -626,13 +739,16 @@ const capture = await takePendingCapture();
 if (capture) {
   if (capture.error) notify(capture.error, true);
   else {
+    const existing = capture.existingId ? carById(capture.existingId) : null;
     draft = {
+      ...(existing || {}),
       ...capture.fields,
       url: capture.url || "",
       sourceText: capture.sourceText || capture.selectedText || "",
-      notes: Array.isArray(capture.notes) && capture.notes.length ? `Del anuncio (sin verificar):\n${capture.notes.map(note => `• ${note}`).join("\n")}` : "",
+      notes: [existing?.notes || "", ...(Array.isArray(capture.notes) ? capture.notes.filter(note => !existing?.notes?.includes(note)).map(note => `Del anuncio (sin verificar): ${note}`) : [])].filter(Boolean).join("\n"),
       advancedProfileId: capture.advancedRequested && matchingProfiles(capture.fields).some(profile => profile.id === capture.advancedProfileId) ? capture.advancedProfileId : "",
-      origins: capture.origins || {},
+      origins: { ...(existing?.origins || {}), ...(capture.origins || {}) },
+      warnings: [...new Set([...(existing?.warnings || []), ...(capture.warnings || [])])],
       captureWarning: "La extensión ha leído datos visibles o metadatos. Confirma cada campo: el anuncio puede estar incompleto o mostrar un precio condicionado.",
     };
     const suggested = parseListingText(capture.sourceText || capture.selectedText || "");
@@ -641,8 +757,11 @@ if (capture) {
         draft[key] = value; draft.origins[key] = "texto seleccionado; revisa";
       }
     }
-    location.hash = "nuevo";
+    location.hash = existing ? `editar/${encodeURIComponent(existing.id)}` : "nuevo";
   }
 }
 if (!selectedIds.size) selectedIds = new Set(state.cars.slice(0, 2).map(car => car.id));
 render();
+if (!inExtension && "serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("./sw.js").catch(() => { /* La web sigue funcionando conectada. */ });
+}

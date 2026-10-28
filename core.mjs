@@ -3,6 +3,16 @@ export const GEARBOXES = ["Manual", "Automático", "Otro"];
 export const LABELS = ["Sin etiqueta", "B", "C", "ECO", "0"];
 export const STATUSES = ["Por revisar", "Contactado", "Visita prevista", "Visitado", "Finalista", "Descartado"];
 export const EVIDENCE = ["Pendiente", "Lo afirma el vendedor", "Verificado", "No cumple"];
+export const VISIT_CHECKS = [
+  ["identity", "Matrícula y bastidor coinciden con los documentos"],
+  ["cold", "Arranque en frío sin ruidos, humo o testigos persistentes"],
+  ["leaks", "Motor y bajos revisados en busca de fugas visibles"],
+  ["tyres", "Neumáticos con desgaste coherente y estado comprobado"],
+  ["brakes", "Frenada recta, sin vibraciones o ruidos anómalos"],
+  ["drive", "Cambio, embrague y dirección probados en marcha"],
+  ["electronics", "Climatización, luces y equipos principales probados"],
+  ["workshop", "Inspección independiente realizada o acordada"],
+];
 
 export const DEFAULT_PROFILE = {
   name: "Mi búsqueda",
@@ -172,7 +182,7 @@ export function evaluate(car, profile) {
     negative,
     missing,
     checks,
-    provisional: knownWeight < totalWeight || verified < questions.length,
+    provisional: knownWeight < totalWeight || verified < questions.length || !!car.warnings?.length,
   };
 }
 
@@ -186,6 +196,11 @@ export function validateCar(car) {
   if (car.year && (car.year < 1980 || car.year > new Date().getFullYear() + 1)) errors.push("Revisa el año.");
   if (car.priceCash != null && (car.priceCash < 0 || car.priceCash > 1000000)) errors.push("Revisa el precio.");
   if (car.km != null && (car.km < 0 || car.km > 2000000)) errors.push("Revisa los kilómetros.");
+  for (const [key, value] of Object.entries(car.costs || {})) {
+    if (value != null && (!Number.isFinite(value) || value < 0 || value > (["fuelL100", "fuelPrice", "energyKwh100", "energyPrice", "electricSharePercent"].includes(key) ? 100 : 1_000_000))) {
+      errors.push("Revisa los supuestos de coste."); break;
+    }
+  }
   return errors;
 }
 

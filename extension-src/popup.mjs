@@ -1,6 +1,8 @@
 import { candidateFromCapture } from "./candidate.mjs";
 import { readCurrentPage } from "./capture.mjs";
 import { advancedChecks, matchingProfiles } from "./advanced.mjs";
+import { loadState } from "./storage.mjs";
+import { normalizeUrl } from "./core.mjs";
 
 const BLOCKED_HOSTS = ["wallapop.com", "milanuncios.com"];
 const labels = {
@@ -10,6 +12,7 @@ const labels = {
 };
 let candidate = null;
 let advancedProfile = null;
+let existingId = "";
 
 const element = id => document.getElementById(id);
 function status(text, kind = "") {
@@ -46,6 +49,10 @@ async function inspectCurrentTab() {
     }
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readCurrentPage });
     candidate = candidateFromCapture(results?.[0]?.result);
+    const saved = await loadState();
+    let canonical = "";
+    try { canonical = normalizeUrl(candidate.url); } catch { /* Sin enlace válido. */ }
+    existingId = canonical ? saved.cars.find(car => car.url === canonical)?.id || "" : "";
     element("page-title").textContent = candidate.pageTitle;
     showFields(candidate.fields);
     if (!candidate.canAdd) {
@@ -55,8 +62,15 @@ async function inspectCurrentTab() {
       return;
     }
     status("Anuncio listo para revisar", "ready");
-    element("message").textContent = "Los datos detectados son sugerencias. Comprueba especialmente precio, cambio y kilómetros.";
+    element("message").textContent = candidate.warnings.length ?
+      `${candidate.warnings.length} dato(s) contradictorio(s). Revisa la ficha antes de guardar.` :
+      "Los datos detectados son sugerencias. Comprueba especialmente precio, cambio y kilómetros.";
+    element("warnings").replaceChildren(...candidate.warnings.map(warning => {
+      const item = document.createElement("li"); item.textContent = warning; return item;
+    }));
+    element("warning-box").hidden = candidate.warnings.length === 0;
     element("add").disabled = false;
+    if (existingId) element("add").firstChild.textContent = "Actualizar ficha guardada ";
     const profiles = candidate.fields.year ? matchingProfiles(candidate.fields) : [];
     if (profiles.length) {
       advancedProfile = profiles[0];
@@ -89,10 +103,12 @@ async function addCandidate(advanced = false) {
       url: candidate.url,
       sourceText: candidate.sourceText,
       notes: candidate.notes,
+      warnings: candidate.warnings,
       advancedRequested: advanced,
       advancedProfileId: advanced ? advancedProfile?.id : "",
+      existingId,
     } });
-    await chrome.tabs.create({ url: chrome.runtime.getURL("index.html#nuevo") });
+    await chrome.tabs.create({ url: chrome.runtime.getURL(existingId ? `index.html#editar/${encodeURIComponent(existingId)}` : "index.html#nuevo") });
     window.close();
   } catch (error) {
     status("No se pudo abrir la ficha", "error");

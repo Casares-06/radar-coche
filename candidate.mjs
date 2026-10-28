@@ -1,4 +1,5 @@
-import { parseListingText } from "./core.mjs?v=20261027-1";
+import { parseListingText } from "./core.mjs?v=20261028-1";
+import { captureConflicts } from "./insights.mjs";
 
 const MAKES = [
   "Alfa Romeo", "Aston Martin", "Land Rover", "Mercedes-Benz", "Volkswagen", "Citroën",
@@ -94,6 +95,7 @@ export function candidateFromCapture(raw) {
     pageTitle: String(capture.heading || capture.title || "Anuncio abierto").slice(0, 160),
     sourceText: String(capture.selectedText || structured.description || capture.description || capture.pageText || "").slice(0, 8000),
     notes: relevantNotes(capture),
+    warnings: captureConflicts(capture),
     fieldCount: count,
   };
 }

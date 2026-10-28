@@ -360,6 +360,25 @@ tbody tr:hover{background:#f5f8fe}
 .listing-notes{border-top:1px solid #e4ebf4;margin-top:16px;padding-top:15px}
 .listing-notes strong{font-size:12px;color:#344e78}
 .listing-notes p{white-space:pre-wrap;color:#52657e;line-height:1.55;font-size:12px;margin:8px 0 0}
+.cost-editor{margin-top:22px;padding:20px;border:1px solid #d6dfed;border-radius:10px;background:#f7f9fd}
+.cost-editor summary{cursor:pointer;font-weight:700;color:#1c355e;list-style-position:inside}
+.cost-editor .form-grid{margin-top:17px}
+.conflict-panel{border-color:#e9c987;background:#fffaf0}
+.conflict-panel h2{color:#704a10}
+.priority-list{margin:15px 0 18px;padding-left:23px;line-height:1.55;color:#263c61}
+.priority-list li{padding:4px 0}
+.cost-figure{display:block;font-size:28px;letter-spacing:-.04em;color:#1a3768;font-variant-numeric:tabular-nums;margin:13px 0 9px}
+.history-list{padding:0;margin:15px 0;list-style:none;border-top:1px solid #e2e9f3}
+.history-list li{padding:10px 0;border-bottom:1px solid #e2e9f3;font-size:12px;line-height:1.5;color:#31455f}
+.history-list li span{display:block;color:#74839a;font-size:11px;margin-bottom:2px}
+#activity-form{display:grid;gap:12px}
+#activity-form button{justify-self:start}
+.disclosure summary{cursor:pointer;font-size:17px;font-weight:700;color:#1a3159;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.disclosure summary::-webkit-details-marker{display:none}
+.disclosure summary:before{content:"+";font-size:20px;color:#3662bd;margin-right:8px}
+.disclosure[open] summary:before{content:"−"}
+.disclosure summary span{margin-left:auto;font-size:12px;font-weight:600;color:#6a7890;white-space:nowrap}
+.disclosure[open] summary{margin-bottom:14px}
 @media(max-width:920px){.advanced-car-grid,.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.advanced-hero{padding:24px;display:block}.advanced-hero-number{display:none}.advanced-car-grid,.catalog-grid{grid-template-columns:1fr}.advanced-check-fields{grid-template-columns:1fr}}
 @media(max-width:1120px){.canvas{padding:31px 27px 75px}.overview-lead{grid-template-columns:1.1fr .8fr}.lead-copy{padding:27px}.lead-copy h2{font-size:30px}}

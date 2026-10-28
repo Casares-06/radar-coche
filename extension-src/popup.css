@@ -52,3 +52,5 @@ h1{font-size:21px;font-weight:700;color:#1a3262}
 .advanced-popup-card p{color:#5b7197;font-size:12px;line-height:1.45;margin:0 0 14px}
 .popup-checks{display:grid;gap:7px}.popup-checks div{background:#fff;border:1px solid #dce6f7;border-radius:7px;padding:9px 11px;color:#325182;font-size:12px;font-weight:600}
 [hidden]{display:none!important}
+.warning-box{border:1px solid #e6c27f;background:#fff8ea;border-radius:8px;padding:11px;margin-bottom:12px;color:#69480f;font-size:12px}
+.warning-box ul{padding-left:18px;margin:7px 0 0;line-height:1.45}

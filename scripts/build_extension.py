@@ -18,7 +18,7 @@ def main() -> None:
         shutil.rmtree(OUTPUT)
     OUTPUT.mkdir()
     for file in ROOT.iterdir():
-        if file.is_file() and file.suffix in {".html", ".css", ".js", ".mjs", ".svg"}:
+        if file.is_file() and file.suffix in {".html", ".css", ".js", ".mjs", ".svg", ".webmanifest"}:
             shutil.copy2(file, OUTPUT / file.name)
     shutil.copytree(ROOT / "fonts", OUTPUT / "fonts")
     shutil.copytree(SOURCE, OUTPUT, dirs_exist_ok=True)
